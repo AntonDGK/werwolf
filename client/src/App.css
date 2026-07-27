@@ -231,3 +231,18 @@ body {
   z-index: 1;
   min-height: 100vh;
 }
+
+.game-area {
+
+}
+
+.scoreboard-area {
+  height: 30%;
+  width: 100%;
+
+  position: fixed;
+
+  left: 0;
+  right: 0;
+  bottom: 0;
+}

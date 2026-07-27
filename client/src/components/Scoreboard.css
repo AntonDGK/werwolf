@@ -1,0 +1,73 @@
+.scoreboard {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+
+  width: 100%;
+}
+
+.scoreboard-gm {
+  flex-shrink: 0;
+
+  width: 140px;
+  min-height: 100px;
+
+  padding: 16px;
+
+  border-radius: 16px;
+  border: 2px solid #d5aa72;
+
+  background: rgba(68, 36, 22, 0.8);
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.scoreboard-entries {
+  flex: 1;
+
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+
+  gap: 16px;
+
+  overflow-x: auto;
+}
+
+.scoreboard-player,
+.scoreboard-group {
+  flex: 0 0 180px;
+
+  min-height: 100px;
+
+  padding: 16px;
+
+  border-radius: 16px;
+  border: 2px solid rgba(213, 170, 114, 0.6);
+
+  background: rgba(245, 246, 237, 0.12);
+
+  box-sizing: border-box;
+}
+
+.scoreboard-player h3,
+.scoreboard-group h3 {
+  margin: 0 0 10px;
+}
+
+.scoreboard-group-players {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  margin-top: 10px;
+}
+
+.scoreboard-player[data-current="true"],
+.scoreboard-group[data-current="true"] {
+  outline: 3px solid gold;
+  box-shadow: 0 0 12px gold;
+}

@@ -442,7 +442,7 @@ function App() {
       <div className="app-content">
       <h1 id="quiz-title">Katzencafé-Quiz</h1>
 
-      
+      <div className="game-area">
       {phase === "start" && (
         <JoinScreen onJoin={handleJoin} />
       )}
@@ -516,6 +516,8 @@ function App() {
           </section>
         ))}
 
+      </div>
+      <div className="scoreboard-area">
       {phase !== "start" &&
         (isGameMaster ? (
           <Scoreboardgm
@@ -533,6 +535,7 @@ function App() {
             currentTeam={currentTeam}
             />
         ))}
+      </div>
       </div>
     </main>
   );

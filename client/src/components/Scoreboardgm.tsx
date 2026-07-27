@@ -1,5 +1,6 @@
 import type { Player } from "../types/Player";
 import { socket } from "../socket";
+import "./Scoreboard.css";
 
 type ScoreboardgmProps = {
   players: Player[];
@@ -106,7 +107,7 @@ function Scoreboardgm({
   };
 
   return (
-    <section>
+    <section className="scoreboard">
       {gameMaster && (
         <p className="scoreboard-gm">
           <strong>
@@ -116,16 +117,7 @@ function Scoreboardgm({
         </p>
       )}
 
-        <input
-          type="number"
-          value={pointValue}
-          onChange={(event) => {
-            setPointValue(
-              Number(event.target.value)
-            );
-          }}
-        />
-
+      <div className="scoreboard-entries">
       {playersWithoutGroup.map(
         (player) => (
           <div 
@@ -201,8 +193,8 @@ function Scoreboardgm({
           </div>
         )
       )}
-
-      <div>
+      </div>
+      <div className="scoreboard-controls">
         <button
           type="button"
           onClick={onLobby}
@@ -219,6 +211,15 @@ function Scoreboardgm({
         <button onClick={onNextTeam}>
           Nächstes Team
         </button>
+                <input
+          type="number"
+          value={pointValue}
+          onChange={(event) => {
+            setPointValue(
+              Number(event.target.value)
+            );
+          }}
+        />
       </div>
     </section>
   );

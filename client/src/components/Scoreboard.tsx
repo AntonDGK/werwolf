@@ -1,5 +1,5 @@
 import type { Player } from "../types/Player";
-
+import "./Scoreboard.css";
 type ScoreboardProps = {
   players: Player[];
   currentTeam: string | null;
@@ -31,20 +31,20 @@ function Scoreboard({ players, currentTeam}: ScoreboardProps) {
   });
 
   return (
-    <section>
-      {/*<h2>Spieler</h2>*/}
+    <section className="scoreboard">
+
 
       {gameMaster && (
         <p className="scoreboard-gm">
           <strong>{gameMaster.name}</strong> GM
         </p>
       )}
-
+      <div className="scoreboard-entries">
       {playersWithoutGroup.map((player) => (
         <div 
           key={player.id}
           className="scoreboard-player"
-          data-current={currentTeam === "player:${player.id}"}
+          data-current={currentTeam === `player:${player.id}`}
         >
           <h3>
             {player.name} ({player.points})
@@ -66,6 +66,7 @@ function Scoreboard({ players, currentTeam}: ScoreboardProps) {
           ))}
         </div>
       ))}
+      </div>
     </section>
   );
 }
