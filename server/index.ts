@@ -413,7 +413,7 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
 
     socket.on("updateTeamText", (player: Player, text: string) => {
       if(player.group == null) {
-        socket.emit("teamTextChanged", text);
+        //socket.emit("teamTextChanged", text);
         return;
       }
       for (const p of players) {
