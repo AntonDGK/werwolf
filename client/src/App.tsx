@@ -36,9 +36,6 @@ function App() {
   const [players, setPlayers] =
     useState<Player[]>([]);
 
-  const [hasJoined, setHasJoined] =
-    useState(false);
-
   const [isGameMaster, setIsGameMaster] =
     useState(false);
 
@@ -86,7 +83,6 @@ function App() {
     const handleJoined = () => {
       console.log("Normaler Spieler beigetreten");
 
-      setHasJoined(true);
       setIsGameMaster(false);
       setPhase("lobby");
     };
@@ -94,7 +90,6 @@ function App() {
     const handleJoinedAdmin = () => {
       console.log("GameMaster beigetreten");
 
-      setHasJoined(true);
       setIsGameMaster(true);
       setPhase("lobby");
     };
@@ -114,7 +109,7 @@ function App() {
     const handlePhaseChange = (
       newPhase: GamePhase
     ) => {
-      if(!hasJoined) {return;}
+      
 
       console.log("Neue Spielphase:", newPhase);
 
