@@ -23,6 +23,12 @@ export type QuizData = {
   categories: Category[];
 };
 
+export type RevealedAnswer = {
+  questionId: string;
+  answer: string;
+  extras: string[];
+};
+
 /*
  * Öffentlich
  */
