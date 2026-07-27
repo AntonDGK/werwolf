@@ -187,10 +187,11 @@
 
 #quiz-title{
   place-self: center;
-  color: #F5F6ED;
+  color: white;
   margin-top: 5%;
+  font-size: 50px;
 }
-
+/*
 #make-me-cool {
   position: fixed;
   inset: 0;
@@ -198,8 +199,35 @@
   height: 100vh;
   z-index: -1;
 }
+*/
 
-main {
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+#app {
+  position: relative;
+  min-height: 100vh;
+  isolation: isolate;
+}
+
+#make-me-cool {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.app-content {
   position: relative;
   z-index: 1;
+  min-height: 100vh;
 }

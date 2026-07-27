@@ -82,16 +82,52 @@ function App() {
     useState<string | null>(null);
 
   useEffect(() => {
-    const canvas = document.querySelector('#make-me-cool') as HTMLCanvasElement | null;
-    if(!canvas) {return;}
-    const settings = {
-      colors: ['#442416', '#D5AA72', '#F5F6ED'],
-      triangleSize: 50,
+    const canvas = canvasRef.current;
+
+    if (!canvas) return;
+
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
     };
 
-    ThpaceGL.create(canvas, settings);
+    resizeCanvas();
 
+    const thpace = ThpaceGL.create(canvas, {
+      colors: [
+        "#442416",
+        "#D5AA72",
+        "#F5F6ED",
+      ],
+      triangleSize: 75,
+      automaticResize: false,
+    });
 
+    window.addEventListener(
+      "resize",
+      resizeCanvas
+    );
+
+    return () => {
+      window.removeEventListener(
+        "resize",
+        resizeCanvas
+      );
+
+      const instance = thpace as {
+        stop?: () => void;
+      };
+
+      instance.stop?.();
+
+      // Kein WEBGL_lose_context verwenden!
+    };
+  }, []);
+    
+  useEffect(() => {
     const handleConnect = () => {
       console.log("Socket verbunden:", socket.id);
 
@@ -399,13 +435,14 @@ function App() {
     setCurrentTeam(team);
   };
 
-  socket.on("currentTeamChanged", handleCurrentTeamChanged);
   
   return (
-    <main>
-      <canvas id="make-me-cool" ref={canvasRef} />
+    <main id="app">
+        <canvas id="make-me-cool" ref={canvasRef} />
+      <div className="app-content">
       <h1 id="quiz-title">Katzencafé-Quiz</h1>
 
+      
       {phase === "start" && (
         <JoinScreen onJoin={handleJoin} />
       )}
@@ -496,6 +533,7 @@ function App() {
             currentTeam={currentTeam}
             />
         ))}
+      </div>
     </main>
   );
 }
