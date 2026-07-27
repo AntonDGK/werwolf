@@ -417,7 +417,7 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
         return;
       }
       for (const p of players) {
-        if(p.group == player.group){
+        if(p.group == player.group && p.id !== player.id){
           io.to(p.id).emit("teamTextChanged", text);
         }
       }
