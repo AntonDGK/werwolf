@@ -72,6 +72,9 @@ function App() {
     text: string;
     }[]
   >([]);
+  
+  const [currentTeam, setCurrentTeam] =
+    useState<string | null>(null);
 
   useEffect(() => {
     const handleConnect = () => {
@@ -210,6 +213,7 @@ function App() {
         }
       );
     };
+    
 
     socket.on("connect", handleConnect);
 
@@ -245,6 +249,8 @@ function App() {
 
     socket.on("nextTeam", handleNextTeam);
 
+    socket.on("currentTeamChanged", handleCurrentTeamChanged);
+
     return () => {
       socket.off("connect", handleConnect);
 
@@ -277,6 +283,8 @@ function App() {
       socket.off("teamTextsRevealed", handleTeamTextsRevealed);
 
       socket.off("nextTeam", handleNextTeam);
+
+      socket.off("currentTeamChanged", handleCurrentTeamChanged);
     };
   }, []);
 
@@ -370,6 +378,14 @@ function App() {
     socket.emit("revealTeamTexts");
   };
 
+  const handleCurrentTeamChanged = (
+    team: string | null
+  ) => {
+    setCurrentTeam(team);
+  };
+
+  socket.on("currentTeamChanged", handleCurrentTeamChanged);
+  
   return (
     <main>
       <Header />
@@ -456,9 +472,13 @@ function App() {
             onBoard={handleBoardBroadcast}
             onLobby={handleLobbyBroadcast}
             onNextTeam={handleNextTeam}
+            currentTeam={currentTeam}
           />
         ) : (
-          <Scoreboard players={players} />
+          <Scoreboard 
+            players={players}
+            currentTeam={currentTeam}
+            />
         ))}
     </main>
   );

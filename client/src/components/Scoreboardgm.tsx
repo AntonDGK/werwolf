@@ -8,6 +8,7 @@ type ScoreboardgmProps = {
   onBoard: () => void;
   onLobby: () => void;
   onNextTeam: () => void;
+  currentTeam: string | null;
 };
 
 function Scoreboardgm({
@@ -16,7 +17,8 @@ function Scoreboardgm({
   setPointValue,
   onBoard,
   onLobby,
-  onNextTeam
+  onNextTeam,
+  currentTeam,
 }: ScoreboardgmProps) {
   const gameMaster = players.find(
     (player) => player.isGameMaster
@@ -106,7 +108,7 @@ function Scoreboardgm({
   return (
     <section>
       {gameMaster && (
-        <p>
+        <p className="scoreboard-gm">
           <strong>
             {gameMaster.name}
           </strong>{" "}
@@ -126,7 +128,11 @@ function Scoreboardgm({
 
       {playersWithoutGroup.map(
         (player) => (
-          <div key={player.id}>
+          <div 
+            key={player.id}
+            className="scoreboard-player"
+            data-current={currentTeam === `player:${player.id}`}
+          >
             <h3>
               {player.name} (
               {player.points})
@@ -157,7 +163,11 @@ function Scoreboardgm({
 
       {Object.entries(groups).map(
         ([groupName, groupPlayers]) => (
-          <div key={groupName}>
+          <div 
+            key={groupName}
+            className="scoreboard-player"
+            data-current={currentTeam === `group:${groupName}`}
+          >
             <h3>
               {groupName} (
               {groupPlayers[0].points})

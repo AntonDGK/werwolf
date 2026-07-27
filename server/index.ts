@@ -509,22 +509,8 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
       if (teams.length === 0) {
         gameState.currentTeam = null;
 
-        io.emit(
-          "currentTeamChanged",
-          null
-        );
-      } else if (
-        gameState.currentTeam === null ||
-        (
-          wasCurrentTeam &&
-          !teams.includes(
-            disconnectedTeamKey
-          )
-        ) ||
-        !teams.includes(
-          gameState.currentTeam
-        )
-      ) {
+        io.emit("currentTeamChanged", null);
+      } else if (gameState.currentTeam === null || (wasCurrentTeam && !teams.includes(disconnectedTeamKey)) || !teams.includes(gameState.currentTeam)) {
         gameState.currentTeam = teams[0];
 
         io.emit("currentTeamChanged", gameState.currentTeam);

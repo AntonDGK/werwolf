@@ -2,9 +2,10 @@ import type { Player } from "../types/Player";
 
 type ScoreboardProps = {
   players: Player[];
+  currentTeam: string | null;
 };
 
-function Scoreboard({ players }: ScoreboardProps) {
+function Scoreboard({ players, currentTeam}: ScoreboardProps) {
   const gameMaster = players.find((player) => player.isGameMaster);
 
   const normalPlayers = players.filter(
@@ -34,13 +35,17 @@ function Scoreboard({ players }: ScoreboardProps) {
       {/*<h2>Spieler</h2>*/}
 
       {gameMaster && (
-        <p>
+        <p className="scoreboard-gm">
           <strong>{gameMaster.name}</strong> GM
         </p>
       )}
 
       {playersWithoutGroup.map((player) => (
-        <div key={player.id}>
+        <div 
+          key={player.id}
+          className="scoreboard-player"
+          data-current={currentTeam === "player:${player.id}"}
+        >
           <h3>
             {player.name} ({player.points})
           </h3>
@@ -48,7 +53,10 @@ function Scoreboard({ players }: ScoreboardProps) {
       ))}
 
       {Object.entries(groups).map(([groupName, groupPlayers]) => (
-        <div key={groupName}>
+        <div 
+          key={groupName}
+          className="scoreboard-group"
+          data-current={currentTeam === `group:${groupName}`}>
           <h3>
             {groupName} ({groupPlayers[0].points}) 
           </h3>
