@@ -9,7 +9,7 @@ import type {
 
 const quizPath = path.join(
   __dirname,
-  "./quizfragen/questions.json"
+  "../quizfragen/questions.json"
 );
 
 export const quiz: QuizData = JSON.parse(
