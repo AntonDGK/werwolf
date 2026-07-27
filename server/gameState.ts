@@ -1,0 +1,14 @@
+export const gameState = {
+  // Bereits gespielte Fragen
+  usedQuestionIds: new Set<string>(),
+
+  // Aktuelle Frage
+  currentQuestionId: null as string | null,
+
+  // Aktuelles Team
+  currentTeam: null as string | null,
+
+  // Wer hat gebuzzert?
+  buzzerPlayerId: null as string | null,
+};
+
