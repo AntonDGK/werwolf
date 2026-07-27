@@ -34,7 +34,7 @@ const players: Player[] = [];
 
 let currentPhase: GamePhase = "lobby";
 
-app.get("/", (req, res) => {res.send("Server!");});
+app.get("/", (req, res) => {res.send("Server! von AntonDGK lowkey bisschen sus das du hier bist geh mal bitte wieder");});
 
 io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
 
