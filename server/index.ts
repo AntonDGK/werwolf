@@ -292,17 +292,18 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
           return;
         }
 
-        if (
-          player.isGameMaster
-        ) {
+        if (player.isGameMaster) {
           console.log("Der GameMaster kann keinem Team zugewiesen werden.");
           return;
         }
 
-        player.group = groupName;
-
-        player.color = color;
-
+        if (groupName == "") {
+          player.group = null;
+          player.color = null;
+        } else {
+          player.group = groupName;
+          player.color = color;
+        }
         console.log(`${player.name} ist jetzt in ${groupName} mit der Farbe ${color}.`);
 
         io.emit("players", players);
