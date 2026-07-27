@@ -125,8 +125,9 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
         if (!gameMaster ?.isGameMaster) {
           console.log("Nur der GameMaster darf die Phase ändern.");
           return;
-        })
+        }
 
+        
         const allowedPhases:
           GamePhase[] = [
           "lobby",
@@ -142,6 +143,7 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
         currentPhase = newPhase;
 
         console.log("Spielphase geändert zu:", currentPhase);
+
         for (const player of players) {
           io.to(player.id).emit("phaseChanged", currentPhase);
         }
