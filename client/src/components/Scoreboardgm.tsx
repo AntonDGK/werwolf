@@ -7,6 +7,7 @@ type ScoreboardgmProps = {
   setPointValue: (value: number) => void;
   onBoard: () => void;
   onLobby: () => void;
+  onNextTeam: () => void;
 };
 
 function Scoreboardgm({
@@ -15,6 +16,7 @@ function Scoreboardgm({
   setPointValue,
   onBoard,
   onLobby,
+  onNextTeam
 }: ScoreboardgmProps) {
   const gameMaster = players.find(
     (player) => player.isGameMaster
@@ -203,6 +205,9 @@ function Scoreboardgm({
           onClick={onBoard}
         >
           Board
+        </button>
+        <button onClick={onNextTeam}>
+          Nächstes Team
         </button>
       </div>
     </section>

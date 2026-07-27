@@ -34,6 +34,22 @@ const players: Player[] = [];
 
 let currentPhase: GamePhase = "lobby";
 
+function getTeamKey(player: Player): string {
+  return player.group !== null
+    ? `group:${player.group}`
+    : `player:${player.id}`;
+}
+
+function getTeamKeys(): string[] {
+  return [
+    ...new Set(
+      players
+        .filter((player) => !player.isGameMaster)
+        .map(getTeamKey)
+    ),
+  ];
+}
+
 app.get("/", (req, res) => {res.send("Server! von AntonDGK lowkey bisschen sus das du hier bist geh mal bitte wieder");});
 
 io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
@@ -435,29 +451,89 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
       io.emit("teamTextsRevealed");
     });
 
-    socket.on("disconnect", () => {const index = players.findIndex((player) => player.id === socket.id);
+    socket.on("nextTeam", () => {
+      const gameMaster = players.find(
+        (player) => player.id === socket.id
+      );
 
-        if (index === -1) {return;}
+      if (!gameMaster?.isGameMaster) {return;}
 
-        const wasGameMaster = players[index].isGameMaster;
+      const teams = getTeamKeys();
 
-        players.splice(index, 1);
-
-        if (wasGameMaster &&  players.length > 0) {
-          const newGameMaster = players[0];
-
-          newGameMaster.isGameMaster = true;
-
-          io.to(newGameMaster.id).emit("joinedAdmin");
-
-          io.to(newGameMaster.id).emit("phaseChanged", currentPhase);
-        }
-
-        console.log(`${socket.id} hat die Verbindung getrennt.`);
-
-        io.emit("players", players);
+      if (teams.length === 0) {
+        gameState.currentTeam = null;
+        io.emit("currentTeamChanged", null);
+        return;
       }
-    );
+
+      const currentIndex = teams.indexOf(
+        gameState.currentTeam ?? ""
+      );
+
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % teams.length;
+
+      gameState.currentTeam = teams[nextIndex];
+
+      io.emit("currentTeamChanged", gameState.currentTeam);
+    });
+
+    socket.on("disconnect", () => {
+      const index = players.findIndex((player) => player.id === socket.id);
+
+      if (index === -1) {return;}
+
+      const disconnectedPlayer = players[index];
+      const wasGameMaster = disconnectedPlayer.isGameMaster;
+
+      const disconnectedTeamKey = getTeamKey(disconnectedPlayer);
+
+      const wasCurrentTeam = gameState.currentTeam === disconnectedTeamKey;
+
+      players.splice(index, 1);
+
+      if (
+        wasGameMaster &&
+        players.length > 0
+      ) {
+        const newGameMaster = players[0];
+
+        newGameMaster.isGameMaster = true;
+
+        io.to(newGameMaster.id).emit("joinedAdmin");
+
+        io.to(newGameMaster.id).emit("phaseChanged", currentPhase);
+      }
+
+      const teams = getTeamKeys();
+
+      if (teams.length === 0) {
+        gameState.currentTeam = null;
+
+        io.emit(
+          "currentTeamChanged",
+          null
+        );
+      } else if (
+        gameState.currentTeam === null ||
+        (
+          wasCurrentTeam &&
+          !teams.includes(
+            disconnectedTeamKey
+          )
+        ) ||
+        !teams.includes(
+          gameState.currentTeam
+        )
+      ) {
+        gameState.currentTeam = teams[0];
+
+        io.emit("currentTeamChanged", gameState.currentTeam);
+      }
+
+      console.log(`${socket.id} hat die Verbindung getrennt.`);
+
+      io.emit("players", players);
+    });
   }
 );
 

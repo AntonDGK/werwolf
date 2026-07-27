@@ -243,6 +243,8 @@ function App() {
 
     socket.on("teamTextsRevealed", handleTeamTextsRevealed);
 
+    socket.on("nextTeam", handleNextTeam);
+
     return () => {
       socket.off("connect", handleConnect);
 
@@ -273,6 +275,8 @@ function App() {
       socket.off("teamTextSubmitted", handleTeamTextSubmitted);
 
       socket.off("teamTextsRevealed", handleTeamTextsRevealed);
+
+      socket.off("nextTeam", handleNextTeam);
     };
   }, []);
 
@@ -356,6 +360,10 @@ function App() {
     if (!currentPlayer) {return;}
 
     socket.emit("submitTeamText", currentPlayer,teamText);
+  };
+
+  const handleNextTeam = () => {
+    socket.emit("nextTeam");
   };
 
   const handleRevealTeamTexts = () => {
@@ -447,6 +455,7 @@ function App() {
             setPointValue={setPointValue}
             onBoard={handleBoardBroadcast}
             onLobby={handleLobbyBroadcast}
+            onNextTeam={handleNextTeam}
           />
         ) : (
           <Scoreboard players={players} />
