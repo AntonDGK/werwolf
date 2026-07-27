@@ -1,5 +1,5 @@
 import { useState } from "react";
-
+import "./JoinScreen.css";
 type JoinScreenProps = {
   onJoin: (name: string) => void;
 };
@@ -18,6 +18,7 @@ function JoinScreen({ onJoin }: JoinScreenProps) {
   return (
     <div>
       <input
+        className="join-input"
         type="text"
         placeholder="Name"
         value={name}

@@ -1,0 +1,16 @@
+.join-input {
+    background-color: #D5AA72;
+    margin: 30px;
+    border: none;
+    outline: none;
+    width: 30%;  
+    padding: 10px 20px;
+    font-size: 16px;
+    border-radius: 9999px;
+    box-shadow: inset 2px 5px 10px rgb(a0, a0, a0);
+    color: #131410;
+    place-self: center; 
+    margin-left: 35%;
+    margin-top: 10%;
+}
+

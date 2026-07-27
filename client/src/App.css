@@ -184,3 +184,22 @@
   }
 }
 */
+
+#quiz-title{
+  place-self: center;
+  color: #F5F6ED;
+  margin-top: 5%;
+}
+
+#make-me-cool {
+  position: fixed;
+  inset: 0;
+  width: 250vw;
+  height: 100vh;
+  z-index: -1;
+}
+
+main {
+  position: relative;
+  z-index: 1;
+}

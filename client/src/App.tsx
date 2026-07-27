@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import "./App.css";
 
 import type { Player } from "./types/Player";
@@ -10,7 +10,6 @@ import type {
   BuzzerWinner,
 } from "./types/Quiz";
 
-import Header from "./components/Header";
 import JoinScreen from "./components/JoinScreen";
 import Lobby from "./components/Lobby";
 import Lobbygm from "./components/Lobbygm";
@@ -23,6 +22,9 @@ import Fragengm from "./components/Fragengm";
 
 import { socket } from "./socket";
 
+//Hier der geklaute Hintergrund
+import { ThpaceGL } from 'thpace';
+
 type GamePhase =
   | "start"
   | "lobby"
@@ -30,6 +32,9 @@ type GamePhase =
   | "frage";
 
 function App() {
+  //geklauter Hintergrund
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const [phase, setPhase] =
     useState<GamePhase>("start");
 
@@ -77,6 +82,16 @@ function App() {
     useState<string | null>(null);
 
   useEffect(() => {
+    const canvas = document.querySelector('#make-me-cool') as HTMLCanvasElement | null;
+    if(!canvas) {return;}
+    const settings = {
+      colors: ['#442416', '#D5AA72', '#F5F6ED'],
+      triangleSize: 50,
+    };
+
+    ThpaceGL.create(canvas, settings);
+
+
     const handleConnect = () => {
       console.log("Socket verbunden:", socket.id);
 
@@ -388,7 +403,8 @@ function App() {
   
   return (
     <main>
-      <Header />
+      <canvas id="make-me-cool" ref={canvasRef} />
+      <h1 id="quiz-title">Katzencafé-Quiz</h1>
 
       {phase === "start" && (
         <JoinScreen onJoin={handleJoin} />
