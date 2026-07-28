@@ -32,10 +32,28 @@
   margin: 0;
   z-index: 1000;
 }
+/*
+#square1 {
+  background: blue;
+}
+#square2 {
+  background: green;
+}
+#square3 {
+  background: yellow;
+}
+#square4 {
+  background: red
+}
+#square5 {
+  background: purple;
+}
+*/
+
 
 .loadingspinner div {
   display: inline-block;
-  background: darkorange;
+  background: brown;
   border: none;
   border-radius: 2px;
   width: var(--square);

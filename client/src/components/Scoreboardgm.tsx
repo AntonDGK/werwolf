@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { Player } from "../types/Player";
 import { socket } from "../socket";
 import "./Scoreboard.css";
@@ -31,24 +32,25 @@ function Scoreboardgm({
       player.name !== "Spectator"
   );
 
-  const playersWithoutGroup =
-    normalPlayers.filter(
-      (player) => !player.group
-    );
+  const playersWithoutGroup = normalPlayers.filter(
+    (player) => !player.group
+  );
 
-  const groups: Record<string, Player[]> = {};
-
-  normalPlayers.forEach((player) => {
+  const groups = normalPlayers.reduce<
+    Record<string, Player[]>
+  >((result, player) => {
     if (!player.group) {
-      return;
+      return result;
     }
 
-    if (!groups[player.group]) {
-      groups[player.group] = [];
+    if (!result[player.group]) {
+      result[player.group] = [];
     }
 
-    groups[player.group].push(player);
-  });
+    result[player.group].push(player);
+
+    return result;
+  }, {});
 
   const addPointsToPlayer = (
     playerId: string
@@ -89,8 +91,12 @@ function Scoreboardgm({
 
     socket.emit("addPointsToPlayer", {
       playerId,
-      points: -Math.floor(pointValue / 2),
+      points: -Math.floor(
+        Math.abs(pointValue) / 2
+      ),
     });
+
+    setPointValue(0);
   };
 
   const subtractHalfPointsFromGroup = (
@@ -100,127 +106,347 @@ function Scoreboardgm({
       return;
     }
 
-    socket.emit("addPointsToPlayer", {
+    socket.emit("addPointsToGroup", {
       groupName,
-      points: -Math.floor(pointValue / 2),
+      points: -Math.floor(
+        Math.abs(pointValue) / 2
+      ),
     });
+
+    setPointValue(0);
   };
 
   return (
-    <section className="scoreboard">
+    <section className="scoreboard scoreboard-gm-view">
       {gameMaster && (
-        <p className="scoreboard-gm">
-          <strong>
+        <aside className="scoreboard-gm">
+          <span className="scoreboard-gm-label">
+            Game Master
+          </span>
+
+          <strong className="scoreboard-gm-name">
             {gameMaster.name}
-          </strong>{" "}
-          GM
-        </p>
+          </strong>
+
+          <span className="scoreboard-gm-description">
+            Steuerung
+          </span>
+        </aside>
       )}
 
       <div className="scoreboard-entries">
-      {playersWithoutGroup.map(
-        (player) => (
-          <div 
-            key={player.id}
-            className="scoreboard-player"
-            data-current={currentTeam === `player:${player.id}`}
-          >
-            <h3>
-              {player.name} (
-              {player.points})
-              <button
-                type="button"
-                onClick={() => {
-                  addPointsToPlayer(
-                    player.id
-                  );
-                }}
-              >
-                +
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  subtractHalfPointsFromPlayer(
-                    player.id
-                  );
-                }}
-              >
-                -
-              </button>
-            </h3>
-          </div>
-        )
-      )}
+        {playersWithoutGroup.map((player) => {
+          const isCurrent =
+            currentTeam ===
+            `player:${player.id}`;
 
-      {Object.entries(groups).map(
-        ([groupName, groupPlayers]) => (
-          <div 
-            key={groupName}
-            className="scoreboard-player"
-            data-current={currentTeam === `group:${groupName}`}
-          >
-            <h3>
-              {groupName} (
-              {groupPlayers[0].points})
-              <button
-                type="button"
-                onClick={() => {
-                  addPointsToGroup(
-                    groupName
-                  );
-                }}
-              >
-                +
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  subtractHalfPointsFromGroup(
-                    groupName
-                  );
-                }}
-              >
-                -
-              </button>
-            </h3>
+          const cardStyle = {
+            "--player-color":
+              player.color || "darkorange",
+          } as CSSProperties;
 
-            {groupPlayers.map((player) => (
-              <p key={player.id}>
-                {player.name}
-              </p>
-            ))}
-          </div>
-        )
-      )}
-      </div>
-      <div className="scoreboard-controls">
-        <button
-          type="button"
-          onClick={onLobby}
-        >
-          Lobby
-        </button>
+          return (
+            <article
+              key={player.id}
+              className="scoreboard-card"
+              data-current={isCurrent}
+              style={cardStyle}
+            >
+              <div className="scoreboard-card-inner">
+                <div className="scoreboard-card-face scoreboard-card-front">
+                  <span className="scoreboard-card-type">
+                    Spieler
+                  </span>
 
-        <button
-          type="button"
-          onClick={onBoard}
-        >
-          Board
-        </button>
-        <button onClick={onNextTeam}>
-          Nächstes Team
-        </button>
-                <input
-          type="number"
-          value={pointValue}
-          onChange={(event) => {
-            setPointValue(
-              Number(event.target.value)
+                  <h2 className="scoreboard-card-title">
+                    {player.name}
+                  </h2>
+
+                  <div className="scoreboard-card-points">
+                    ({player.points})
+                  </div>
+
+
+                  <div className="scoreboard-actions">
+                    <button
+                      type="button"
+                      className="scoreboard-action-button scoreboard-action-add"
+                      disabled={pointValue === 0}
+                      onClick={() =>
+                        addPointsToPlayer(
+                          player.id
+                        )
+                      }
+                      aria-label={`${pointValue} Punkte zu ${player.name} hinzufügen`}
+                    >
+                      +
+                    </button>
+
+                    <button
+                      type="button"
+                      className="scoreboard-action-button scoreboard-action-subtract"
+                      disabled={pointValue === 0}
+                      onClick={() =>
+                        subtractHalfPointsFromPlayer(
+                          player.id
+                        )
+                      }
+                      aria-label={`Die Hälfte von ${pointValue} Punkten bei ${player.name} abziehen`}
+                    >
+                      −
+                    </button>
+                  </div>
+                </div>
+
+                <div className="scoreboard-card-face scoreboard-card-back">
+                  <span className="scoreboard-turn-label">
+                    Am Zug
+                  </span>
+
+                  <h2 className="scoreboard-card-title">
+                    {player.name}
+                  </h2>
+
+                  <div className="scoreboard-card-points">
+                    ({player.points})
+                  </div>
+
+                  <div className="scoreboard-actions">
+                    <button
+                      type="button"
+                      className="scoreboard-action-button scoreboard-action-add"
+                      disabled={pointValue === 0}
+                      onClick={() =>
+                        addPointsToPlayer(
+                          player.id
+                        )
+                      }
+                    >
+                      +
+                    </button>
+
+                    <button
+                      type="button"
+                      className="scoreboard-action-button scoreboard-action-subtract"
+                      disabled={pointValue === 0}
+                      onClick={() =>
+                        subtractHalfPointsFromPlayer(
+                          player.id
+                        )
+                      }
+                    >
+                      −
+                    </button>
+                  </div>
+
+                  <span className="scoreboard-turn-indicator">
+                    Aktiver Spieler
+                  </span>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+
+        {Object.entries(groups).map(
+          ([groupName, groupPlayers]) => {
+            const isCurrent =
+              currentTeam ===
+              `group:${groupName}`;
+
+            const groupPoints =
+              groupPlayers[0]?.points ?? 0;
+
+            const groupColor =
+              groupPlayers[0]?.color ||
+              "darkorange";
+
+            const cardStyle = {
+              "--player-color": groupColor,
+            } as CSSProperties;
+
+            return (
+              <article
+                key={groupName}
+                className="scoreboard-card scoreboard-team-card"
+                data-current={isCurrent}
+                style={cardStyle}
+              >
+                <div className="scoreboard-card-inner">
+                  <div className="scoreboard-card-face scoreboard-card-front">
+                    <span className="scoreboard-card-type">
+                      Team
+                    </span>
+
+                    <h2 className="scoreboard-card-title">
+                      {groupName}
+                    </h2>
+
+                    <div className="scoreboard-card-points">
+                      ({groupPoints})
+                    </div>
+
+                    <div className="scoreboard-members">
+                      {groupPlayers.map(
+                        (player) => (
+                          <span
+                            key={player.id}
+                            className="scoreboard-member"
+                          >
+                            {player.name}
+                          </span>
+                        )
+                      )}
+                    </div>
+
+                    <div className="scoreboard-actions">
+                      <button
+                        type="button"
+                        className="scoreboard-action-button scoreboard-action-add"
+                        disabled={pointValue === 0}
+                        onClick={() =>
+                          addPointsToGroup(
+                            groupName
+                          )
+                        }
+                        aria-label={`${pointValue} Punkte zu ${groupName} hinzufügen`}
+                      >
+                        +
+                      </button>
+
+                      <button
+                        type="button"
+                        className="scoreboard-action-button scoreboard-action-subtract"
+                        disabled={pointValue === 0}
+                        onClick={() =>
+                          subtractHalfPointsFromGroup(
+                            groupName
+                          )
+                        }
+                        aria-label={`Die Hälfte von ${pointValue} Punkten bei ${groupName} abziehen`}
+                      >
+                        −
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="scoreboard-card-face scoreboard-card-back">
+                    <span className="scoreboard-turn-label">
+                      Am Zug
+                    </span>
+
+                    <h2 className="scoreboard-card-title">
+                      {groupName}
+                    </h2>
+
+                    <div className="scoreboard-card-points">
+                      ({groupPoints})
+                    </div>
+
+
+                    <div className="scoreboard-members">
+                      {groupPlayers.map(
+                        (player) => (
+                          <span
+                            key={player.id}
+                            className="scoreboard-member"
+                          >
+                            {player.name}
+                          </span>
+                        )
+                      )}
+                    </div>
+
+                    <div className="scoreboard-actions">
+                      <button
+                        type="button"
+                        className="scoreboard-action-button scoreboard-action-add"
+                        disabled={pointValue === 0}
+                        onClick={() =>
+                          addPointsToGroup(
+                            groupName
+                          )
+                        }
+                      >
+                        +
+                      </button>
+
+                      <button
+                        type="button"
+                        className="scoreboard-action-button scoreboard-action-subtract"
+                        disabled={pointValue === 0}
+                        onClick={() =>
+                          subtractHalfPointsFromGroup(
+                            groupName
+                          )
+                        }
+                      >
+                        −
+                      </button>
+                    </div>
+
+                    <span className="scoreboard-turn-indicator">
+                      Aktives Team
+                    </span>
+                  </div>
+                </div>
+              </article>
             );
-          }}
-        />
+          }
+        )}
       </div>
+
+      <aside className="scoreboard-controls">
+        <div className="scoreboard-point-control">
+          <label
+            className="scoreboard-control-label"
+            htmlFor="scoreboard-point-value"
+          >
+            Punktwert
+          </label>
+
+          <input
+            id="scoreboard-point-value"
+            className="scoreboard-point-input"
+            type="number"
+            min="0"
+            step="50"
+            value={pointValue}
+            onChange={(event) => {
+              setPointValue(
+                Number(event.target.value)
+              );
+            }}
+          />
+
+        </div>
+
+        <div className="scoreboard-navigation">
+          <button
+            type="button"
+            className="scoreboard-control-button"
+            onClick={onLobby}
+          >
+            Lobby
+          </button>
+
+          <button
+            type="button"
+            className="scoreboard-control-button"
+            onClick={onBoard}
+          >
+            Board
+          </button>
+
+          <button
+            type="button"
+            className="scoreboard-control-button scoreboard-next-button"
+            onClick={onNextTeam}
+          >
+            Nächstes Team
+          </button>
+        </div>
+      </aside>
     </section>
   );
 }
