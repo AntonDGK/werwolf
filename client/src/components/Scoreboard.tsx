@@ -50,9 +50,6 @@ function Scoreboard({
             {gameMaster.name}
           </strong>
 
-          <span className="scoreboard-gm-description">
-            Spielleitung
-          </span>
         </aside>
       )}
 

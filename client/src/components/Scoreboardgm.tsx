@@ -120,10 +120,6 @@ function Scoreboardgm({
           <strong className="scoreboard-gm-name">
             {gameMaster.name}
           </strong>
-
-          <span className="scoreboard-gm-description">
-            Steuerung
-          </span>
         </aside>
       )}
 
