@@ -403,7 +403,7 @@ function Scoreboardgm({
             className="scoreboard-point-input"
             type="number"
             min="0"
-            step="50"
+            step="100"
             value={pointValue}
             onChange={(event) => {
               setPointValue(
