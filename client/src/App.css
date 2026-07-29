@@ -234,11 +234,11 @@ body {
   z-index: 1;
   min-height: 100vh;
 }
-/*
-.game-area {
 
+.game-area {
+  max-height: 60vh;
 }
-*/
+
 .scoreboard-area {
   height: 30%;
   width: 100%;

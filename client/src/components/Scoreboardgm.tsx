@@ -188,9 +188,6 @@ function Scoreboardgm({
                 </div>
 
                 <div className="scoreboard-card-face scoreboard-card-back">
-                  <span className="scoreboard-turn-label">
-                    Am Zug
-                  </span>
 
                   <h2 className="scoreboard-card-title">
                     {player.name}
@@ -320,9 +317,7 @@ function Scoreboardgm({
                   </div>
 
                   <div className="scoreboard-card-face scoreboard-card-back">
-                    <span className="scoreboard-turn-label">
-                      Am Zug
-                    </span>
+
 
                     <h2 className="scoreboard-card-title">
                       {groupName}

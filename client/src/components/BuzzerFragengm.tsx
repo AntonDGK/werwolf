@@ -1,3 +1,5 @@
+import "./BuzzerFragen.css";
+
 import type {
   BuzzerWinner,
   Question,
@@ -15,16 +17,14 @@ function BuzzerFragengm({
   onResetBuzzer,
 }: BuzzerFragengmProps) {
   return (
-    <section>
-      <h1>{question.question}</h1>
+    <section className="buzzer-fragen">
+      <h1 className="question-title">{question.question}</h1>
 
-      <h2>Antwort</h2>
-
-      <p>{question.answer}</p>
+      <p className="answer-field">{question.answer}</p>
 
       {buzzerWinner ? (
       <>
-        <p>
+        <p className="buzzer-winner">
         {buzzerWinner.playerName}
 
         {buzzerWinner.groupName && (
@@ -34,6 +34,7 @@ function BuzzerFragengm({
         </p>
 
         <button
+        className="reset-buzzer-button"
         type="button"
         onClick={onResetBuzzer}
         >
@@ -41,7 +42,7 @@ function BuzzerFragengm({
         </button>
     </>
       ) : (
-      <p>Noch niemand hat gebuzzert.</p>
+      <p className="no-buzzer-winner">Noch niemand hat gebuzzert.</p>
       )}
     </section>
   );

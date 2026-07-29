@@ -1,3 +1,5 @@
+import "./Fragen.css";
+
 import type {
   PublicQuestion,
   RevealedAnswer,
@@ -83,7 +85,7 @@ function Fragen({
     question.id;
 
   return (
-    <section>
+    <section className="antwort">
       {questionComponent}
 
       {isAnswerForCurrentQuestion && (

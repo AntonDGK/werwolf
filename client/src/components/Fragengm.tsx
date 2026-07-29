@@ -1,3 +1,6 @@
+import "./Fragen.css";
+
+
 import type {
   Question,
   BuzzerWinner,
@@ -66,10 +69,11 @@ function Fragengm({
   }
 
   return (
-    <section>
+    <section className="antwort">
       {questionComponent}
 
       <button
+        className="reveal-answer-button"
         type="button"
         onClick={onRevealAnswer}
       >

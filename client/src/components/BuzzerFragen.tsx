@@ -1,3 +1,5 @@
+import "./BuzzerFragen.css";
+
 import type {
   BuzzerWinner,
   PublicQuestion,
@@ -15,21 +17,10 @@ function BuzzerFragen({
   onBuzz,
 }: BuzzerFragenProps) {
   return (
-    <section>
-      <h1>{question.question}</h1>
-
-      {question.extras.length > 0 && (
-        <ul>
-          {question.extras.map(
-            (extra, index) => (
-              <li key={index}>
-                {extra}
-              </li>
-            )
-          )}
-        </ul>
-      )}
+    <section className="buzzer-fragen">
+      <h1 className="question-title">{question.question}</h1>
       <button
+        className="buzz-button"
         type="button"
         onClick={onBuzz}
         disabled={buzzerWinner !== null}
@@ -37,7 +28,7 @@ function BuzzerFragen({
         Buzzern
       </button>
       {buzzerWinner && (
-        <p>
+        <p className="buzzer-winner">
           {buzzerWinner.playerName}
 
           {buzzerWinner.groupName && (
