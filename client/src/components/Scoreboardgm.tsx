@@ -229,7 +229,7 @@ function Scoreboardgm({
                   </div>
 
                   <span className="scoreboard-turn-indicator">
-                    Aktiver Spieler
+                    Am Zug
                   </span>
                 </div>
               </div>
@@ -375,7 +375,7 @@ function Scoreboardgm({
                     </div>
 
                     <span className="scoreboard-turn-indicator">
-                      Aktives Team
+                      Am Zug
                     </span>
                   </div>
                 </div>
@@ -414,19 +414,17 @@ function Scoreboardgm({
           <button
             type="button"
             className="scoreboard-control-button"
-            onClick={onLobby}
-          >
-            Lobby
-          </button>
-
-          <button
-            type="button"
-            className="scoreboard-control-button"
             onClick={onBoard}
           >
             Board
           </button>
-
+          <button
+            type="button"
+            className="scoreboard-control-button"
+            onClick={onLobby}
+          >
+            Lobby
+          </button>
           <button
             type="button"
             className="scoreboard-control-button scoreboard-next-button"

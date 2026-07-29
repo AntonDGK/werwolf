@@ -112,6 +112,10 @@ code {
 }
 */
 
+body{
+  font-family: Arial, Helvetica, sans-serif;
+}
+
 header  {
   font: 18px/145% var(--sans);
 }

@@ -1,4 +1,5 @@
 import type { PublicQuizData } from "../types/Quiz";
+import "./Board.css";
 
 type BoardProps = {
   quiz: PublicQuizData;

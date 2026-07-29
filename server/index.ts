@@ -310,15 +310,16 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
         if (player.isGameMaster) {
           console.log("Der GameMaster kann keinem Team zugewiesen werden.");
           return;
+          
         }
 
         if (groupName == "") {
           player.group = null;
-          player.color = null;
         } else {
           player.group = groupName;
-          player.color = color;
         }
+        player.color = color;
+
         console.log(`${player.name} ist jetzt in ${groupName} mit der Farbe ${color}.`);
 
         io.emit("players", players);
@@ -519,6 +520,7 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
       console.log(`${socket.id} hat die Verbindung getrennt.`);
 
       io.emit("players", players);
+      console.log("Aktuelle Spieler:" + players.map((p) => p.name).join(", "));
     });
   }
 );
