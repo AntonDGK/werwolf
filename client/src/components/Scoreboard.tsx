@@ -87,9 +87,6 @@ function Scoreboard({
                 </div>
 
                 <div className="scoreboard-card-face scoreboard-card-back">
-                  <span className="scoreboard-turn-label">
-                    Am Zug
-                  </span>
 
                   <h3 className="scoreboard-card-title">
                     {player.name}
@@ -100,7 +97,7 @@ function Scoreboard({
                   </strong>
 
                   <span className="scoreboard-turn-indicator">
-                    Jetzt auswählen
+                    Am Zug
                   </span>
                 </div>
               </div>

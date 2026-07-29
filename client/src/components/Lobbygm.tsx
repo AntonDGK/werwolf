@@ -45,7 +45,7 @@ function Lobbygm({
       {customColor ? (
         <input
           type="text"
-          placeholder="#ff0000"
+          placeholder="#00ff00"
           value={color}
           onChange={(e) =>
             setColor(e.target.value)
@@ -86,7 +86,7 @@ function Lobbygm({
               onChangeTeam(
                 player.id,
                 teamname,
-                "red"
+                color
               )
             }
           >

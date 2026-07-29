@@ -106,14 +106,7 @@ function Scoreboardgm({
       return;
     }
 
-    socket.emit("addPointsToGroup", {
-      groupName,
-      points: -Math.floor(
-        Math.abs(pointValue) / 2
-      ),
-    });
-
-    setPointValue(0);
+    socket.emit("addPointsToGroup", {groupName, points: -Math.floor(Math.abs(pointValue) / 2),});
   };
 
   return (

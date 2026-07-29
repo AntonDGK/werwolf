@@ -1,18 +1,46 @@
+import { useState } from "react";
 import "./Lobby.css";
 
 function Lobby() {
+  const [showVideos, setShowVideos] = useState(false);
+
   return (
     <header>
-      <div className="lobby-loading">
-        <iframe className="subway" width="225" height="500" src="https://www.youtube.com/embed/zZ7AimPACzc?si=_j-TSllPHaxCSfHf&amp;controls=0&amp;autoplay=1&amp;loop=1&amp;mute=1" 
-        title="YouTube video player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-        referrerpolicy="strict-origin-when-cross-origin" frameborder="0" allowfullscreen="false"> 
-        </iframe>
-        
+      <label className="switch">
+        <input className="cb" type="checkbox" checked={showVideos} onChange={(e) => setShowVideos(e.target.checked)} />
+        <span className="toggle">
+          <span className="left">OFF</span>
+          <span className="right">ADHS</span>
+        </span>
+      </label>
 
-        <iframe className="minecraft" width="281" height="500" src="https://www.youtube.com/embed/s600FYgI5-s?si=NP9xw0kp8kRP_rrD&amp;controls=0&amp;autoplay=1&amp;loop=1&amp;mute=1" 
-        title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; 
-        picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen="false"></iframe>
+
+      <div className="lobby-loading">
+        {showVideos && (
+          <>
+            <iframe
+              className="subway"
+              width="225"
+              height="500"
+              src="https://www.youtube.com/embed/zZ7AimPACzc?controls=0&autoplay=1&loop=1&mute=1"
+              title="Subway"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              frameBorder={0}
+            />
+
+            <iframe
+              className="minecraft"
+              width="281"
+              height="500"
+              src="https://www.youtube.com/embed/s600FYgI5-s?controls=0&autoplay=1&loop=1&mute=1"
+              title="Minecraft"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              frameBorder={0}
+            />
+          </>
+        )}
 
         <div className="loadingspinner">
           <div id="square1"></div>
