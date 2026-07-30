@@ -287,8 +287,8 @@
 /* The switch - the box around the slider */
 .switch {
   position: fixed;
-  top: 0px;
-  right: -50px;
+  top: -9vh;
+  right: -92.5vw;
 
   font-size: 20px;
   position: relative;

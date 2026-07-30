@@ -69,9 +69,11 @@ function Fragengm({
   }
 
   return (
-    <section className="antwort">
+    <section>
+      <section className="frage">
       {questionComponent}
-
+      </section>
+      <section className="antwort">
       <button
         className="reveal-answer-button"
         type="button"
@@ -79,6 +81,7 @@ function Fragengm({
       >
         Ergebnis anzeigen
       </button>
+      </section>
     </section>
   );
 }

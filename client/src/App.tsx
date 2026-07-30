@@ -441,7 +441,10 @@ function App() {
         <canvas id="make-me-cool" ref={canvasRef} />
       <div className="app-content">
       <h1 id="quiz-title">Katzencafé-Quiz</h1>
-
+      <button className="btn-class-name">
+        <span className="back"></span>
+        <span className="front"></span>
+      </button>
       <div className="game-area">
       {phase === "start" && (
         <JoinScreen onJoin={handleJoin} />

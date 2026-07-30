@@ -37,7 +37,7 @@ function Fragen({
   teamTextsRevealed,
 }: FragenProps) {
   let questionComponent;
-
+  
   switch (question.type) {
     case "standard":
       questionComponent = (
@@ -80,16 +80,18 @@ function Fragen({
       );
   }
 
+
   const isAnswerForCurrentQuestion =
     revealedAnswer?.questionId ===
     question.id;
 
   return (
-    <section className="antwort">
+    <section>
+      <section className="frage">
       {questionComponent}
-
+      </section>
       {isAnswerForCurrentQuestion && (
-        <section>
+        <section className="antwort">
           <p>
             {revealedAnswer.answer}
           </p>
