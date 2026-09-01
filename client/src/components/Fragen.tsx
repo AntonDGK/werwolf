@@ -6,9 +6,9 @@ import type {
   BuzzerWinner,
 } from "../types/Quiz";
 
-import StandardFragen from "./StandardFragen";
-import BuzzerFragen from "./BuzzerFragen";
-import TextFragen from "./TextFragen";
+import StandardFragen from "./StandardFragen.tsx";
+import BuzzerFragen from "./BuzzerFragen.tsx";
+import TextFragen from "./TextFragen.tsx";
 
 type FragenProps = {
   question: PublicQuestion;
@@ -27,6 +27,7 @@ type FragenProps = {
 
 function Fragen({
   question,
+  revealedAnswer,
   buzzerWinner,
   onBuzz,
   teamText,
@@ -68,8 +69,15 @@ function Fragen({
       break;
 
     default:
-      questionComponent = <p>Unbekannter Fragetyp.</p>;
+      questionComponent = (
+        <section>
+          <p>Unbekannter Fragetyp.</p>
+        </section>
+      );
   }
+
+  const isAnswerForCurrentQuestion =
+    revealedAnswer?.questionId === question.id;
 
   return (
     <section className="fragen-layout">
@@ -84,20 +92,23 @@ function Fragen({
 
         {/*
           Hier später das optionale Bild einfügen.
-          Den gesamten Container nur rendern, wenn ein Bild vorhanden ist:
+          Den Bildbereich nur rendern, wenn ein Bild vorhanden ist.
 
-          <div className="fragen-bildbereich">
-            <img
-              className="fragen-bild"
-              src={...}
-              alt={...}
-            />
-          </div>
+          Vorgesehene Klassen:
+          - fragen-bildbereich für den Container
+          - fragen-bild für das Bild
         */}
       </section>
 
       <div className="fragen-interaktion">
         {questionComponent}
+
+        {isAnswerForCurrentQuestion && revealedAnswer && (
+          <section className="antwort">
+            <h2>Auflösung</h2>
+            <p>{revealedAnswer.answer}</p>
+          </section>
+        )}
       </div>
     </section>
   );
