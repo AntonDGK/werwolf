@@ -80,16 +80,13 @@ function Fragengm({
         {/*
           Hier später das optionale Bild einfügen.
           Den Bildbereich nur rendern, wenn ein Bild vorhanden ist.
+
           Vorgesehene Klassen:
           - fragen-bildbereich für den Container
           - fragen-bild für das Bild
         */}
-      </section>
 
-      <div className="fragen-interaktion">
-        {questionComponent}
-
-        <section className="antwort">
+        <div className="fragen-aktion">
           <button
             className="reveal-answer-button"
             type="button"
@@ -97,7 +94,11 @@ function Fragengm({
           >
             Ergebnis anzeigen
           </button>
-        </section>
+        </div>
+      </section>
+
+      <div className="fragen-interaktion">
+        {questionComponent}
       </div>
     </section>
   );

@@ -134,3 +134,44 @@
   }
 }
 
+/* Ergebnisfreigabe unten in der Fragekarte */
+.fragen-karte .fragen-aktion {
+  margin-top: auto;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 149, 0, 0.3);
+}
+
+.fragen-aktion .reveal-answer-button {
+  display: block;
+  width: 100%;
+  padding: 18px 24px;
+  box-sizing: border-box;
+
+  color: #fff;
+  background: #ff9500;
+  border: 1px solid #ff9500;
+  border-radius: 14px;
+
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.3;
+
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    transform 150ms ease;
+}
+
+.fragen-aktion .reveal-answer-button:hover {
+  background: #e88400;
+}
+
+.fragen-aktion .reveal-answer-button:active {
+  transform: translateY(2px);
+}
+
+.fragen-aktion .reveal-answer-button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+}
