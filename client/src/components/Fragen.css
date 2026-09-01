@@ -1,0 +1,114 @@
+/* Gemeinsames Layout für Spieler und Spielleiter */
+.fragen-layout {
+  --fragen-akzent: #ff9500;
+  --fragen-textfarbe: #ffffff;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(16px, 2vw, 28px);
+
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.fragen-layout *,
+.fragen-layout *::before,
+.fragen-layout *::after {
+  box-sizing: border-box;
+}
+
+/* Linke Karte: Frage und optionales Bild */
+.fragen-karte {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(24px, 3vw, 40px);
+
+  min-width: 0;
+  min-height: clamp(280px, 45vh, 560px);
+  padding: clamp(24px, 3vw, 44px);
+
+  color: var(--fragen-textfarbe);
+  background: linear-gradient(
+    145deg,
+    rgba(48, 34, 20, 0.96),
+    rgba(27, 23, 20, 0.96)
+  );
+
+  border: 1px solid var(--fragen-akzent);
+  border-radius: 20px;
+
+  box-shadow: 0 8px 24px rgba(40, 24, 9, 0.28);
+}
+
+/* Überschrift */
+.fragen-kopf {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+}
+
+.fragen-label {
+  margin: 0;
+
+  color: var(--fragen-akzent);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.fragen-text {
+  margin: 0;
+
+  color: var(--fragen-textfarbe);
+  font-size: clamp(1.5rem, 2.5vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.3;
+
+  overflow-wrap: anywhere;
+}
+
+/* Bereits vorbereitet für das spätere optionale Bild */
+.fragen-bildbereich {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--fragen-akzent);
+  border-radius: 14px;
+}
+
+.fragen-bild {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 50vh;
+
+  /* Das vollständige Bild bleibt sichtbar. */
+  object-fit: contain;
+}
+
+/* Nur Platzierung, keine Gestaltung von Buzzer oder Antwort */
+.fragen-interaktion {
+  min-width: 0;
+}
+
+/* Auf kleinen Bildschirmen stehen die Bereiche untereinander. */
+@media (max-width: 800px) {
+  .fragen-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fragen-karte {
+    min-height: 240px;
+    border-radius: 16px;
+  }
+}
+
+.fragen-layout {
+  outline: 5px solid magenta !important;
+}
