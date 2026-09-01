@@ -1,4 +1,5 @@
 import "./Fragen.css";
+import QuizBild from "./QuizBild";
 import { serverUrl } from "../socket";
 
 import type {
@@ -77,12 +78,12 @@ function Fragen({
   const isAnswerForCurrentQuestion =
     revealedAnswer?.questionId === question.id;
 
-  // Der Server überträgt nur bereits freigegebene Scrollbilder.
+  // Enthält nur bereits vom Server freigegebene Scrollbilder.
   const scrollPictures = question.extras.filter(
     (extra) => extra.type === "picturescroll" && extra.url
   );
 
-  // Das letzte freigegebene Bild ersetzt das normale Fragebild.
+  // Spieler sehen immer nur das aktuelle Fragebild.
   const currentPicture =
     scrollPictures[scrollPictures.length - 1] ??
     question.extras.find(
@@ -102,8 +103,8 @@ function Fragen({
 
         {currentPicture && (
           <div className="fragen-bildbereich">
-            <img
-              className="fragen-bild"
+            <QuizBild
+              key={currentPicture.url}
               src={new URL(currentPicture.url!, serverUrl).href}
               alt="Bild zur Frage"
             />
@@ -129,8 +130,7 @@ function Fragen({
                   className="fragen-bildbereich"
                   key={extra.url}
                 >
-                  <img
-                    className="fragen-bild"
+                  <QuizBild
                     src={new URL(extra.url!, serverUrl).href}
                     alt="Bild zur Auflösung"
                   />

@@ -1,4 +1,5 @@
 import "./Fragen.css";
+import QuizBild from "./QuizBild";
 import { serverUrl } from "../socket";
 
 import type {
@@ -75,7 +76,7 @@ function Fragengm({
       );
   }
 
-  // Normale Fragebilder und bereits freigegebene Scrollbilder.
+  // Der GM sieht normale Bilder und alle freigegebenen Scrollbilder.
   const questionPictures = [
     ...question.extras.filter(
       (extra) => extra.type === "picture" && extra.url
@@ -114,8 +115,7 @@ function Fragengm({
             className="fragen-bildbereich"
             key={extra.url}
           >
-            <img
-              className="fragen-bild"
+            <QuizBild
               src={new URL(extra.url!, serverUrl).href}
               alt="Bild zur Frage"
             />
@@ -155,8 +155,7 @@ function Fragengm({
                 className="fragen-bildbereich"
                 key={extra.url}
               >
-                <img
-                  className="fragen-bild"
+                <QuizBild
                   src={new URL(extra.url!, serverUrl).href}
                   alt="Bild zur Auflösung"
                 />
