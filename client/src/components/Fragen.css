@@ -87,26 +87,30 @@
   overflow-wrap: anywhere;
 }
 
-/* Bilder in Fragekarte und Auflösung */
 .fragen-bildbereich {
   flex-shrink: 0;
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
+  align-self: center;
 
-  background: rgba(0, 0, 0, 0.15);
-  border: 1px solid var(--fragen-akzent);
-  border-radius: 14px;
+  width: 100%;
+  height: clamp(140px, 32vh, 360px);
+  min-width: 0;
+  margin-inline: auto;
+
+  /* Kein breiter Rahmen um die freien Flächen */
+  border: none;
+  background: transparent;
 }
 
 .fragen-bild {
   display: block;
 
   width: 100%;
-  height: auto;
-  max-height: 50vh;
+  height: 100%;
+  max-width: none;
+  max-height: none;
 
   object-fit: contain;
+  object-position: center;
 }
 
 /* GM-Buttons unter der Frage */
