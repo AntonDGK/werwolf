@@ -4,6 +4,9 @@ import { Server } from "socket.io";
 
 import type { Player } from "./types/Player";
 
+import fs from "fs";
+import path from "path";
+
 import {
   getPublicQuiz,
   getQuestionById,
@@ -51,6 +54,103 @@ function getTeamKeys(): string[] {
 }
 
 app.get("/", (req, res) => {res.send("Server! von AntonDGK lowkey bisschen sus das du hier bist geh mal bitte wieder");});
+
+const quizMediaDirectory = path.resolve(
+  __dirname,
+  "../quizfragen"
+);
+
+app.get("/media/:questionId/:extraIndex", (req, res) => {
+  const { questionId, extraIndex } = req.params;
+
+  // Nur Medien der aktuell geöffneten Frage ausliefern.
+  if (
+    currentPhase !== "frage" ||
+    gameState.currentQuestionId !== questionId
+  ) {
+    res.sendStatus(403);
+    return;
+  }
+
+  const question = getQuestionById(questionId);
+
+  if (!question || !/^\d+$/.test(extraIndex)) {
+    res.sendStatus(404);
+    return;
+  }
+
+  const extra = question.extras[Number(extraIndex)];
+
+  if (!extra) {
+    res.sendStatus(404);
+    return;
+  }
+
+  const isVisible =
+    extra.type === "picture" ||
+    (
+      extra.type === "revealpicture" &&
+      gameState.answerRevealed
+    );
+
+  if (!isVisible) {
+    res.sendStatus(403);
+    return;
+  }
+
+  // Vorerst liegen Bilder direkt neben questions.json.
+  // Unterordner und Pfade außerhalb dieses Ordners sind ausgeschlossen.
+  if (
+    typeof extra.file !== "string" ||
+    extra.file.includes("/") ||
+    extra.file.includes("\\")
+  ) {
+    res.sendStatus(400);
+    return;
+  }
+
+  const allowedExtensions = new Set([
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".gif",
+    ".avif",
+  ]);
+
+  const extension = path.extname(extra.file).toLowerCase();
+
+  if (!allowedExtensions.has(extension)) {
+    res.sendStatus(415);
+    return;
+  }
+
+  try {
+    const realDirectory = fs.realpathSync(quizMediaDirectory);
+    const realFile = fs.realpathSync(
+      path.join(realDirectory, extra.file)
+    );
+
+    // Auch Verknüpfungen dürfen nicht aus dem Quizordner führen.
+    if (
+      path.dirname(realFile) !== realDirectory ||
+      !fs.statSync(realFile).isFile()
+    ) {
+      res.sendStatus(403);
+      return;
+    }
+
+    res.setHeader("Cache-Control", "no-store");
+
+    res.sendFile(realFile, (error) => {
+      if (error && !res.headersSent) {
+        res.sendStatus(500);
+      }
+    });
+  } catch {
+    res.sendStatus(404);
+  }
+});
 
 io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
 

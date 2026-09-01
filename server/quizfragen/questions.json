@@ -195,7 +195,16 @@
           "type": "standard",
           "question": "Frage 5.1",
           "answer": "Antwort 5.1",
-          "extras": []
+          "extras": [
+          {
+            "type": "picture",
+            "file": "Cat01.jpg"
+          },
+          {
+            "type": "revealpicture",
+            "file": "Cat03.jpg"
+          }
+        ]
         },
         {
           "id": "5-200",
