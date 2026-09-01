@@ -5,10 +5,12 @@ export const gameState = {
   // Aktuelle Frage
   currentQuestionId: null as string | null,
 
+  // Wurde die aktuelle Antwort freigegeben?
+  answerRevealed: false,
+
   // Aktuelles Team
   currentTeam: null as string | null,
 
   // Wer hat gebuzzert?
   buzzerPlayerId: null as string | null,
 };
-

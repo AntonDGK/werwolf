@@ -3,13 +3,22 @@ export type QuestionType =
   | "buzzer"
   | "text";
 
+export type QuestionExtra = {
+  type:
+    | "picture"
+    | "picturescroll"
+    | "audio"
+    | "revealpicture";
+  file: string;
+};
+
 export type Question = {
   id: string;
   points: number;
   type: QuestionType;
   question: string;
   answer: string;
-  extras: string[];
+  extras: QuestionExtra[];
 };
 
 export type Category = {
@@ -26,7 +35,7 @@ export type QuizData = {
 export type RevealedAnswer = {
   questionId: string;
   answer: string;
-  extras: string[];
+  extras: QuestionExtra[];
 };
 
 /*
@@ -38,7 +47,7 @@ export type PublicQuestion = {
   points: number;
   type: QuestionType;
   question: string;
-  extras: string[];
+  extras: QuestionExtra[];
 };
 
 export type PublicCategory = {

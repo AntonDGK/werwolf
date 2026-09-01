@@ -108,6 +108,63 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
 
       socket.emit("phaseChanged", currentPhase);
 
+      // Aktuelle Frage an den neuen Spieler senden.
+      if (
+        currentPhase === "frage" &&
+        gameState.currentQuestionId
+      ) {
+        const question = getQuestionById(
+          gameState.currentQuestionId
+        );
+
+        if (question) {
+          socket.emit("questionSelected", {
+            id: question.id,
+            points: question.points,
+            type: question.type,
+            question: question.question,
+            extras: question.extras.filter(
+              (extra) => extra.type === "picture"
+            ),
+          });
+
+          // NEU: Bereits freigegebene Auflösung nachliefern.
+          if (gameState.answerRevealed) {
+            socket.emit("answerRevealed", {
+              questionId: question.id,
+              answer: question.answer,
+              extras: question.extras.filter(
+                (extra) => extra.type === "revealpicture"
+              ),
+            });
+          }
+
+          if (newPlayer.isGameMaster) {
+            socket.emit("questionSelectedGM", question);
+          }
+
+          // Bereits vergebenen Buzzer übertragen.
+          const buzzerWinner = players.find(
+            (player) =>
+              player.id === gameState.buzzerPlayerId
+          );
+
+          if (buzzerWinner) {
+            socket.emit("buzzAccepted", {
+              playerId: buzzerWinner.id,
+              playerName: buzzerWinner.name,
+              groupName: buzzerWinner.group,
+            });
+          }
+        }
+      }
+
+      // Aktuelles Team übertragen.
+      socket.emit(
+        "currentTeamChanged",
+        gameState.currentTeam
+      );
+
       io.emit("players", players);
 
       console.log("Aktuelle Spieler:");
@@ -126,6 +183,7 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
 
       gameState.usedQuestionIds.clear();
       gameState.currentQuestionId = null;
+      gameState.answerRevealed = false;
       gameState.currentTeam = null;
       gameState.buzzerPlayerId = null;
 
@@ -189,6 +247,8 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
 
         gameState.currentQuestionId = questionId;
 
+        gameState.answerRevealed = false;
+
         gameState.usedQuestionIds.add(questionId);
 
         currentPhase = "frage";
@@ -206,7 +266,8 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
           points: question.points,
           type: question.type,
           question: question.question,
-          extras: question.extras,
+          extras: question.extras.filter(
+            (extra) => extra.type === "picture")
         });
 
         console.log(`Frage ${questionId} wurde ausgewählt.`);
@@ -277,9 +338,14 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
         return;
       }
 
+      gameState.answerRevealed = true;
+
       io.emit("answerRevealed", {
         questionId: question.id,
         answer: question.answer,
+        extras: question.extras.filter(
+          (extra) => extra.type === "revealpicture"
+        ),
       });
     });
 

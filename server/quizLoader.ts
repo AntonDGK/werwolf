@@ -62,7 +62,7 @@ export function getPublicQuiz(): PublicQuizData {
             points: question.points,
             type: question.type,
             question: question.question,
-            extras: question.extras,
+            extras: [],
           })
         ),
       })
