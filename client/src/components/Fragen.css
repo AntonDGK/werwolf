@@ -228,3 +228,37 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Feste Höhe statt Wachstum durch den Inhalt */
+.fragen-layout {
+  height: 63vh;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+/* Lange Fragen bleiben ebenfalls erreichbar */
+.fragen-karte {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Aktionen, Teamantworten und Auflösung gemeinsam scrollen */
+.fragen-interaktion {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #ff9500 #2b2118;
+}
+
+/* Kleine Bildschirme: beide Karten innerhalb der Höhe aufteilen */
+@media (max-width: 800px) {
+  .fragen-layout {
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
+  .fragen-karte {
+    min-height: 0;
+  }
+}

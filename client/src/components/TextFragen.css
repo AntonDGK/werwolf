@@ -199,3 +199,8 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.text-fragen .text-fragen-liste {
+  max-height: none;
+  overflow-y: visible;
+}
