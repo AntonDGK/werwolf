@@ -175,3 +175,56 @@
   outline: 3px solid #fff;
   outline-offset: 4px;
 }
+
+/* Auflösung unter dem Aktionsbereich */
+.fragen-interaktion > .antwort {
+  margin-top: 24px;
+  padding: clamp(24px, 2.5vw, 36px);
+  min-width: 0;
+  box-sizing: border-box;
+
+  text-align: center;
+  color: #fff;
+
+  background:
+    radial-gradient(
+      ellipse at top right,
+      rgba(255, 149, 0, 0.1),
+      transparent 65%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(48, 34, 20, 0.97),
+      rgba(27, 23, 20, 0.97)
+    );
+
+  border: 1px solid #ff9500;
+  border-radius: 20px;
+
+  box-shadow:
+    0 8px 24px rgba(40, 24, 9, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.fragen-interaktion > .antwort h2 {
+  margin: 0 0 20px;
+  padding-bottom: 16px;
+
+  color: #ffb347;
+  font-size: 1.2rem;
+  font-weight: 600;
+
+  border-bottom: 1px solid rgba(255, 149, 0, 0.25);
+}
+
+.fragen-interaktion > .antwort p {
+  margin: 0;
+
+  color: #fff;
+  font-size: clamp(1.25rem, 1.8vw, 1.75rem);
+  font-weight: 600;
+  line-height: 1.5;
+
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
