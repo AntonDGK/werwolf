@@ -1,6 +1,5 @@
 import "./Fragen.css";
 
-
 import type {
   Question,
   BuzzerWinner,
@@ -15,7 +14,10 @@ type FragengmProps = {
   onRevealAnswer: () => void;
   buzzerWinner: BuzzerWinner | null;
   onResetBuzzer: () => void;
-  submittedTeamTexts: {name: string; text: string;}[];
+  submittedTeamTexts: {
+    name: string;
+    text: string;
+  }[];
   onRevealTeamTexts: () => void;
 };
 
@@ -32,9 +34,7 @@ function Fragengm({
   switch (question.type) {
     case "standard":
       questionComponent = (
-        <StandardFragengm
-          question={question}
-        />
+        <StandardFragengm question={question} />
       );
       break;
 
@@ -61,27 +61,44 @@ function Fragengm({
     default:
       questionComponent = (
         <section>
-          <p>
-            Unbekannter Fragetyp.
-          </p>
+          <p>Unbekannter Fragetyp.</p>
         </section>
       );
   }
 
   return (
-    <section>
-      <section className="frage">
-      {questionComponent}
+    <section className="fragen-layout">
+      <section className="fragen-karte">
+        <header className="fragen-kopf">
+          <p className="fragen-label">Frage</p>
+
+          <h2 className="fragen-text">
+            {question.question}
+          </h2>
+        </header>
+
+        {/*
+          Hier später das optionale Bild einfügen.
+          Den Bildbereich nur rendern, wenn ein Bild vorhanden ist.
+          Vorgesehene Klassen:
+          - fragen-bildbereich für den Container
+          - fragen-bild für das Bild
+        */}
       </section>
-      <section className="antwort">
-      <button
-        className="reveal-answer-button"
-        type="button"
-        onClick={onRevealAnswer}
-      >
-        Ergebnis anzeigen
-      </button>
-      </section>
+
+      <div className="fragen-interaktion">
+        {questionComponent}
+
+        <section className="antwort">
+          <button
+            className="reveal-answer-button"
+            type="button"
+            onClick={onRevealAnswer}
+          >
+            Ergebnis anzeigen
+          </button>
+        </section>
+      </div>
     </section>
   );
 }
