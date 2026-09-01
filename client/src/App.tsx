@@ -482,13 +482,12 @@ function App() {
           currentQuestion ? (
             <Fragengm
               question={currentQuestion}
+              revealedAnswer={revealedAnswer}
               onRevealAnswer={handleRevealAnswer}
               buzzerWinner={buzzerWinner}
               onResetBuzzer={handleResetBuzzer}
               submittedTeamTexts={submittedTeamTexts}
               onRevealTeamTexts={handleRevealTeamTexts}
-
-              
             />
           ) : (
             <section>
