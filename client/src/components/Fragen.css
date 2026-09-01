@@ -110,3 +110,24 @@
   }
 }
 
+/* Nur die Fragenansicht höher machen */
+.fragen-layout {
+  min-height: 63vh;
+  box-sizing: border-box;
+  align-items: stretch;
+  padding: 24px;
+}
+
+.fragen-karte {
+  min-height: 0;
+}
+
+@media (max-width: 800px) {
+  .fragen-layout {
+    min-height: auto;
+  }
+
+  .fragen-karte {
+    min-height: 240px;
+  }
+}
