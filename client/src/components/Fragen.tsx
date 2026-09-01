@@ -6,7 +6,6 @@ import type {
   BuzzerWinner,
 } from "../types/Quiz";
 
-import StandardFragen from "./StandardFragen.tsx";
 import BuzzerFragen from "./BuzzerFragen.tsx";
 import TextFragen from "./TextFragen.tsx";
 
@@ -40,9 +39,7 @@ function Fragen({
 
   switch (question.type) {
     case "standard":
-      questionComponent = (
-        <StandardFragen question={question} />
-      );
+      questionComponent = null;
       break;
 
     case "buzzer":

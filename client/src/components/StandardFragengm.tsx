@@ -1,3 +1,5 @@
+import "./StandardFragen.css";
+
 import type { Question } from "../types/Quiz";
 
 type StandardFragengmProps = {
@@ -8,12 +10,14 @@ function StandardFragengm({
   question,
 }: StandardFragengmProps) {
   return (
-    <section>
-      <h1>{question.question}</h1>
+    <section className="standard-fragen">
+      <h2 className="standard-heading">
+        Richtige Antwort
+      </h2>
 
-      <h2>Antwort</h2>
-
-      <p>{question.answer}</p>
+      <p className="standard-loesung">
+        {question.answer}
+      </p>
     </section>
   );
 }
