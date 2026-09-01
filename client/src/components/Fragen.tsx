@@ -6,9 +6,9 @@ import type {
   BuzzerWinner,
 } from "../types/Quiz";
 
-import StandardFragen from "./StandardFragen.tsx";
-import BuzzerFragen from "./BuzzerFragen.tsx";
-import TextFragen from "./TextFragen.tsx";
+import StandardFragen from "./StandardFragen";
+import BuzzerFragen from "./BuzzerFragen";
+import TextFragen from "./TextFragen";
 
 type FragenProps = {
   question: PublicQuestion;
@@ -27,7 +27,6 @@ type FragenProps = {
 
 function Fragen({
   question,
-  revealedAnswer,
   buzzerWinner,
   onBuzz,
   teamText,
@@ -37,13 +36,11 @@ function Fragen({
   teamTextsRevealed,
 }: FragenProps) {
   let questionComponent;
-  
+
   switch (question.type) {
     case "standard":
       questionComponent = (
-        <StandardFragen
-          question={question}
-        />
+        <StandardFragen question={question} />
       );
       break;
 
@@ -71,32 +68,37 @@ function Fragen({
       break;
 
     default:
-      questionComponent = (
-        <section>
-          <p>
-            Unbekannter Fragetyp.
-          </p>
-        </section>
-      );
+      questionComponent = <p>Unbekannter Fragetyp.</p>;
   }
 
-
-  const isAnswerForCurrentQuestion =
-    revealedAnswer?.questionId ===
-    question.id;
-
   return (
-    <section>
-      <section className="frage">
-      {questionComponent}
+    <section className="fragen-layout">
+      <section className="fragen-karte">
+        <header className="fragen-kopf">
+          <p className="fragen-label">Frage</p>
+
+          <h2 className="fragen-text">
+            {question.question}
+          </h2>
+        </header>
+
+        {/*
+          Hier später das optionale Bild einfügen.
+          Den gesamten Container nur rendern, wenn ein Bild vorhanden ist:
+
+          <div className="fragen-bildbereich">
+            <img
+              className="fragen-bild"
+              src={...}
+              alt={...}
+            />
+          </div>
+        */}
       </section>
-      {isAnswerForCurrentQuestion && (
-        <section className="antwort">
-          <p>
-            {revealedAnswer.answer}
-          </p>
-        </section>
-      )}
+
+      <div className="fragen-interaktion">
+        {questionComponent}
+      </div>
     </section>
   );
 }

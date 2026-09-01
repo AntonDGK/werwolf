@@ -237,7 +237,7 @@ body {
 }
 
 .game-area {
-  max-height: 60vh;
+  max-height: 63vh;
 }
 
 .scoreboard-area {
@@ -253,9 +253,9 @@ body {
 
 
 .btn-class-name {
-  position: relative;
-  right: -3vh;
-  top: -4vh;
+  position: fixed;
+  right: 3vh;
+  top: 3vh;
   --primary: 255, 90, 120;
   --secondary: 150, 50, 60;
   width: 60px;
