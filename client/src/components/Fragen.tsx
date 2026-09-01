@@ -1,5 +1,6 @@
 import "./Fragen.css";
 import { serverUrl } from "../socket";
+
 import type {
   PublicQuestion,
   RevealedAnswer,
@@ -76,6 +77,18 @@ function Fragen({
   const isAnswerForCurrentQuestion =
     revealedAnswer?.questionId === question.id;
 
+  // Der Server überträgt nur bereits freigegebene Scrollbilder.
+  const scrollPictures = question.extras.filter(
+    (extra) => extra.type === "picturescroll" && extra.url
+  );
+
+  // Das letzte freigegebene Bild ersetzt das normale Fragebild.
+  const currentPicture =
+    scrollPictures[scrollPictures.length - 1] ??
+    question.extras.find(
+      (extra) => extra.type === "picture" && extra.url
+    );
+
   return (
     <section className="fragen-layout">
       <section className="fragen-karte">
@@ -87,23 +100,15 @@ function Fragen({
           </h2>
         </header>
 
-      {question.extras
-        .filter(
-          (extra) =>
-            extra.type === "picture" && extra.url
-        )
-        .map((extra) => (
-          <div
-            className="fragen-bildbereich"
-            key={extra.url}
-          >
+        {currentPicture && (
+          <div className="fragen-bildbereich">
             <img
               className="fragen-bild"
-              src={new URL(extra.url!, serverUrl).href}
+              src={new URL(currentPicture.url!, serverUrl).href}
               alt="Bild zur Frage"
             />
           </div>
-        ))}
+        )}
       </section>
 
       <div className="fragen-interaktion">
@@ -113,6 +118,24 @@ function Fragen({
           <section className="antwort">
             <h2>Auflösung</h2>
             <p>{revealedAnswer.answer}</p>
+
+            {revealedAnswer.extras
+              .filter(
+                (extra) =>
+                  extra.type === "revealpicture" && extra.url
+              )
+              .map((extra) => (
+                <div
+                  className="fragen-bildbereich"
+                  key={extra.url}
+                >
+                  <img
+                    className="fragen-bild"
+                    src={new URL(extra.url!, serverUrl).href}
+                    alt="Bild zur Auflösung"
+                  />
+                </div>
+              ))}
           </section>
         )}
       </div>

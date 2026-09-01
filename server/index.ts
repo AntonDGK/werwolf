@@ -91,8 +91,18 @@ app.get("/media/:questionId/:extraIndex", (req, res) => {
     return;
   }
 
+  const scrollPictureNumber = question.extras
+    .slice(0, Number(extraIndex) + 1)
+    .filter(
+      (item) => item.type === "picturescroll"
+    ).length;
+
   const isVisible =
     extra.type === "picture" ||
+    (
+      extra.type === "picturescroll" &&
+      scrollPictureNumber <= gameState.revealedPictureCount
+    ) ||
     (
       extra.type === "revealpicture" &&
       gameState.answerRevealed
@@ -241,7 +251,14 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
               (extra) => extra.type === "picture"
             ),
           });
-
+          socket.emit("picturesRevealed", {
+            questionId: question.id,
+            extras: getExtrasWithUrls(question)
+              .filter(
+                (extra) => extra.type === "picturescroll"
+              )
+              .slice(0, gameState.revealedPictureCount),
+          });
           // NEU: Bereits freigegebene Auflösung nachliefern.
           if (gameState.answerRevealed) {
             socket.emit("answerRevealed", {
@@ -301,6 +318,7 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
       gameState.usedQuestionIds.clear();
       gameState.currentQuestionId = null;
       gameState.answerRevealed = false;
+      gameState.revealedPictureCount = 0;
       gameState.currentTeam = null;
       gameState.buzzerPlayerId = null;
 
@@ -365,6 +383,7 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
         gameState.currentQuestionId = questionId;
 
         gameState.answerRevealed = false;
+        gameState.revealedPictureCount = 0;
 
         gameState.usedQuestionIds.add(questionId);
 
@@ -433,6 +452,52 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
       gameState.buzzerPlayerId = null;
 
       io.emit("buzzerReset");
+    });
+
+    socket.on("revealNextPicture", () => {
+      const gameMaster = players.find(
+        (player) => player.id === socket.id
+      );
+
+      if (!gameMaster?.isGameMaster) {
+        return;
+      }
+
+      if (
+        currentPhase !== "frage" ||
+        !gameState.currentQuestionId
+      ) {
+        return;
+      }
+
+      const question = getQuestionById(
+        gameState.currentQuestionId
+      );
+
+      if (!question) {
+        return;
+      }
+
+      const scrollPictures = getExtrasWithUrls(question).filter(
+        (extra) => extra.type === "picturescroll"
+      );
+
+      // Alle Bilder sind bereits freigegeben.
+      if (
+        gameState.revealedPictureCount >= scrollPictures.length
+      ) {
+        return;
+      }
+
+      gameState.revealedPictureCount += 1;
+
+      io.emit("picturesRevealed", {
+        questionId: question.id,
+        extras: scrollPictures.slice(
+          0,
+          gameState.revealedPictureCount
+        ),
+      });
     });
 
     socket.on("revealAnswer", () => {

@@ -8,6 +8,7 @@ import type {
   Question,
   RevealedAnswer,
   BuzzerWinner,
+  QuestionExtra,
 } from "./types/Quiz";
 
 import JoinScreen from "./components/JoinScreen";
@@ -265,8 +266,33 @@ function App() {
       );
     };
     
+    const handlePicturesRevealed = ({
+      questionId,
+      extras,
+    }: {
+      questionId: string;
+      extras: QuestionExtra[];
+    }) => {
+      setCurrentPublicQuestion((current) => {
+        if (!current || current.id !== questionId) {
+          return current;
+        }
+
+        return {
+          ...current,
+          extras: [
+            ...current.extras.filter(
+              (extra) => extra.type !== "picturescroll"
+            ),
+            ...extras,
+          ],
+        };
+      });
+    };
 
     socket.on("connect", handleConnect);
+
+    socket.on("picturesRevealed", handlePicturesRevealed);  
 
     socket.on("joined", handleJoined);
 
@@ -304,6 +330,8 @@ function App() {
 
     return () => {
       socket.off("connect", handleConnect);
+
+      socket.off("picturesRevealed", handlePicturesRevealed);
 
       socket.off("joined", handleJoined);
 
@@ -397,6 +425,10 @@ function App() {
     socket.emit("revealAnswer");
   };
 
+  const handleRevealNextPicture = () => {
+    socket.emit("revealNextPicture");
+  };
+
   const handleBuzz = () => {
     socket.emit("buzz");
   };
@@ -484,10 +516,18 @@ function App() {
               question={currentQuestion}
               revealedAnswer={revealedAnswer}
               onRevealAnswer={handleRevealAnswer}
+              onRevealNextPicture={handleRevealNextPicture}
               buzzerWinner={buzzerWinner}
               onResetBuzzer={handleResetBuzzer}
               submittedTeamTexts={submittedTeamTexts}
               onRevealTeamTexts={handleRevealTeamTexts}
+              revealedScrollPictures={
+                currentPublicQuestion?.id === currentQuestion.id
+                  ? currentPublicQuestion.extras.filter(
+                      (extra) => extra.type === "picturescroll"
+                    )
+                  : []
+              }
             />
           ) : (
             <section>

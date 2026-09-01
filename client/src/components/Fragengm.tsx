@@ -3,6 +3,7 @@ import { serverUrl } from "../socket";
 
 import type {
   Question,
+  QuestionExtra,
   BuzzerWinner,
   RevealedAnswer,
 } from "../types/Quiz";
@@ -14,6 +15,7 @@ import TextFragengm from "./TextFragengm.tsx";
 type FragengmProps = {
   question: Question;
   onRevealAnswer: () => void;
+  onRevealNextPicture: () => void;
   buzzerWinner: BuzzerWinner | null;
   onResetBuzzer: () => void;
   submittedTeamTexts: {
@@ -22,12 +24,15 @@ type FragengmProps = {
   }[];
   onRevealTeamTexts: () => void;
   revealedAnswer: RevealedAnswer | null;
+  revealedScrollPictures: QuestionExtra[];
 };
 
 function Fragengm({
   question,
   revealedAnswer,
+  revealedScrollPictures,
   onRevealAnswer,
+  onRevealNextPicture,
   buzzerWinner,
   onResetBuzzer,
   submittedTeamTexts,
@@ -70,8 +75,19 @@ function Fragengm({
       );
   }
 
-  const questionPictures = question.extras.filter(
-    (extra) => extra.type === "picture" && extra.url
+  // Normale Fragebilder und bereits freigegebene Scrollbilder.
+  const questionPictures = [
+    ...question.extras.filter(
+      (extra) => extra.type === "picture" && extra.url
+    ),
+    ...revealedScrollPictures.filter(
+      (extra) =>
+        extra.type === "picturescroll" && extra.url
+    ),
+  ];
+
+  const hasScrollPictures = question.extras.some(
+    (extra) => extra.type === "picturescroll"
   );
 
   const revealedPictures =
@@ -107,6 +123,16 @@ function Fragengm({
         ))}
 
         <div className="fragen-aktion">
+          {hasScrollPictures && (
+            <button
+              className="next-picture-button"
+              type="button"
+              onClick={onRevealNextPicture}
+            >
+              Nächstes Bild zeigen
+            </button>
+          )}
+
           <button
             className="reveal-answer-button"
             type="button"
@@ -128,7 +154,6 @@ function Fragengm({
               <div
                 className="fragen-bildbereich"
                 key={extra.url}
-                style={{ marginTop: "20px" }}
               >
                 <img
                   className="fragen-bild"

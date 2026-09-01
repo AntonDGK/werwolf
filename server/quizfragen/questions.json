@@ -201,8 +201,16 @@
             "file": "Cat01.jpg"
           },
           {
-            "type": "revealpicture",
+            "type": "picturescroll",
+            "file": "Cat02.jpg"
+          },
+          {
+            "type": "picturescroll",
             "file": "Cat03.jpg"
+          },
+          {
+            "type": "revealpicture",
+            "file": "Cat04.jpg"
           }
         ]
         },

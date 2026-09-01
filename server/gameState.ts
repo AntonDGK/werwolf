@@ -13,4 +13,6 @@ export const gameState = {
 
   // Wer hat gebuzzert?
   buzzerPlayerId: null as string | null,
+
+  revealedPictureCount: 0,
 };
