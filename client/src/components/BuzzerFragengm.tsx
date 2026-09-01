@@ -18,31 +18,43 @@ function BuzzerFragengm({
 }: BuzzerFragengmProps) {
   return (
     <section className="buzzer-fragen">
-      <h1 className="question-title">{question.question}</h1>
+      <h2 className="buzzer-heading">Buzzer-Verwaltung</h2>
 
-      <p className="answer-field">{question.answer}</p>
+      <div className="buzzer-solution">
+        <h3 className="buzzer-solution-label">
+          Richtige Antwort
+        </h3>
 
-      {buzzerWinner ? (
-      <>
-        <p className="buzzer-winner">
-        {buzzerWinner.playerName}
-
-        {buzzerWinner.groupName && (
-            <> aus {buzzerWinner.groupName}</>
-        )}{" "}
-        hat gebuzzert.
+        <p className="answer-field">
+          {question.answer}
         </p>
+      </div>
 
+      <div className="buzzer-feedback" aria-live="polite">
+        {buzzerWinner ? (
+          <p className="buzzer-winner">
+            {buzzerWinner.playerName}
+
+            {buzzerWinner.groupName && (
+              <> aus {buzzerWinner.groupName}</>
+            )}{" "}
+            hat gebuzzert.
+          </p>
+        ) : (
+          <p className="no-buzzer-winner">
+            Noch niemand hat gebuzzert.
+          </p>
+        )}
+      </div>
+
+      {buzzerWinner && (
         <button
-        className="reset-buzzer-button"
-        type="button"
-        onClick={onResetBuzzer}
+          className="reset-buzzer-button"
+          type="button"
+          onClick={onResetBuzzer}
         >
-        Buzzer zurücksetzen
+          Buzzer zurücksetzen
         </button>
-    </>
-      ) : (
-      <p className="no-buzzer-winner">Noch niemand hat gebuzzert.</p>
       )}
     </section>
   );
