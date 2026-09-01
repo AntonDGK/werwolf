@@ -101,6 +101,7 @@
 @media (max-width: 800px) {
   .fragen-layout {
     grid-template-columns: minmax(0, 1fr);
+    padding: 24px;
   }
 
   .fragen-karte {
