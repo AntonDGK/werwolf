@@ -10,6 +10,7 @@ export type QuestionExtra = {
     | "audio"
     | "revealpicture";
   file: string;
+  url?: string;
 };
 
 export type Question = {

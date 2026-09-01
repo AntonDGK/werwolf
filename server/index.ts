@@ -12,6 +12,11 @@ import {
   getQuestionById,
 } from "./quizLoader";
 
+import type {
+  Question,
+  QuestionExtra,
+} from "./types/Quiz";
+
 import { gameState } from "./gameState";
 
 type GamePhase =
@@ -152,6 +157,15 @@ app.get("/media/:questionId/:extraIndex", (req, res) => {
   }
 });
 
+function getExtrasWithUrls(
+  question: Question
+): QuestionExtra[] {
+  return question.extras.map((extra, index) => ({
+    ...extra,
+    url: `/media/${encodeURIComponent(question.id)}/${index}`,
+  }));
+}
+
 io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
 
     socket.emit("usedQuestionsChanged", Array.from(gameState.usedQuestionIds));
@@ -223,7 +237,7 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
             points: question.points,
             type: question.type,
             question: question.question,
-            extras: question.extras.filter(
+            extras: getExtrasWithUrls(question).filter(
               (extra) => extra.type === "picture"
             ),
           });
@@ -233,14 +247,17 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
             socket.emit("answerRevealed", {
               questionId: question.id,
               answer: question.answer,
-              extras: question.extras.filter(
+              extras: getExtrasWithUrls(question).filter(
                 (extra) => extra.type === "revealpicture"
               ),
             });
           }
 
           if (newPlayer.isGameMaster) {
-            socket.emit("questionSelectedGM", question);
+            socket.emit("questionSelectedGM", {
+              ...question,
+              extras: getExtrasWithUrls(question),
+            });
           }
 
           // Bereits vergebenen Buzzer übertragen.
@@ -366,12 +383,15 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
           points: question.points,
           type: question.type,
           question: question.question,
-          extras: question.extras.filter(
-            (extra) => extra.type === "picture")
+        extras: getExtrasWithUrls(question).filter(
+          (extra) => extra.type === "picture")
         });
 
         console.log(`Frage ${questionId} wurde ausgewählt.`);
-        socket.emit("questionSelectedGM", question);
+        socket.emit("questionSelectedGM", {
+          ...question,
+          extras: getExtrasWithUrls(question),
+        });
       }
     );
 
@@ -443,7 +463,7 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
       io.emit("answerRevealed", {
         questionId: question.id,
         answer: question.answer,
-        extras: question.extras.filter(
+        extras: getExtrasWithUrls(question).filter(
           (extra) => extra.type === "revealpicture"
         ),
       });

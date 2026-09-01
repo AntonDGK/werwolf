@@ -1,5 +1,5 @@
 import "./Fragen.css";
-
+import { serverUrl } from "../socket";
 import type {
   PublicQuestion,
   RevealedAnswer,
@@ -87,14 +87,23 @@ function Fragen({
           </h2>
         </header>
 
-        {/*
-          Hier später das optionale Bild einfügen.
-          Den Bildbereich nur rendern, wenn ein Bild vorhanden ist.
-
-          Vorgesehene Klassen:
-          - fragen-bildbereich für den Container
-          - fragen-bild für das Bild
-        */}
+      {question.extras
+        .filter(
+          (extra) =>
+            extra.type === "picture" && extra.url
+        )
+        .map((extra) => (
+          <div
+            className="fragen-bildbereich"
+            key={extra.url}
+          >
+            <img
+              className="fragen-bild"
+              src={new URL(extra.url!, serverUrl).href}
+              alt="Bild zur Frage"
+            />
+          </div>
+        ))}
       </section>
 
       <div className="fragen-interaktion">
