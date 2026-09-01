@@ -228,3 +228,13 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Sobald die Auflösung erscheint, den Aktionsbereich ausblenden */
+.fragen-interaktion:has(> .antwort) > .buzzer-fragen {
+  display: none;
+}
+
+/* Die Auflösung braucht dann keinen Abstand nach oben */
+.fragen-interaktion:has(> .antwort) > .antwort {
+  margin-top: 0;
+}
