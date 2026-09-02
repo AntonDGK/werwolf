@@ -97,8 +97,8 @@ function Fragengm({
     (extra) => extra.type === "picturescroll"
   );
 
-  // Den ursprünglichen Index in der vollständigen Extras-Liste
-  // erhalten, damit der Server die richtige Audiodatei auswählt.
+  // Originalindex erhalten: Der Server erwartet den Index
+  // innerhalb der vollständigen Extras-Liste.
   const audioExtras = question.extras
     .map((extra, extraIndex) => ({
       extra,
@@ -139,36 +139,91 @@ function Fragengm({
 
         <div className="fragen-aktion">
           {audioExtras.length > 0 && (
-            <>
+            <div className="audio-steuerung">
               <h3 className="fragen-label">Audio</h3>
 
-              {audioExtras.map(({ extraIndex }, index) => (
+              <div
+                className="audio-buttons"
+                role="group"
+                aria-label="Audiosteuerung"
+              >
+                {audioExtras.map(({ extraIndex }, index) => (
+                  <button
+                    key={extraIndex}
+                    className="audio-icon-button audio-icon-play"
+                    type="button"
+                    onClick={() => onPlayAudio(extraIndex)}
+                    title={`Audio ${index + 1} starten / fortsetzen`}
+                    aria-label={`Audio ${index + 1} starten oder fortsetzen`}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+
+                    {audioExtras.length > 1 && (
+                      <span className="audio-nummer">
+                        {index + 1}
+                      </span>
+                    )}
+                  </button>
+                ))}
+
                 <button
-                  key={extraIndex}
-                  className="next-picture-button"
+                  className="audio-icon-button"
                   type="button"
-                  onClick={() => onPlayAudio(extraIndex)}
+                  onClick={onPauseAudio}
+                  title="Aktuelles Audio pausieren"
+                  aria-label="Aktuelles Audio pausieren"
                 >
-                  Audio {index + 1} starten / fortsetzen
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <rect
+                      x="6"
+                      y="5"
+                      width="4"
+                      height="14"
+                      rx="1"
+                    />
+                    <rect
+                      x="14"
+                      y="5"
+                      width="4"
+                      height="14"
+                      rx="1"
+                    />
+                  </svg>
                 </button>
-              ))}
 
-              <button
-                className="next-picture-button"
-                type="button"
-                onClick={onPauseAudio}
-              >
-                Audio pausieren
-              </button>
-
-              <button
-                className="next-picture-button"
-                type="button"
-                onClick={onResetAudio}
-              >
-                Audio zurücksetzen
-              </button>
-            </>
+                <button
+                  className="audio-icon-button"
+                  type="button"
+                  onClick={onResetAudio}
+                  title="Aktuelles Audio stoppen und zurücksetzen"
+                  aria-label="Aktuelles Audio stoppen und zurücksetzen"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <rect
+                      x="5"
+                      y="5"
+                      width="14"
+                      height="14"
+                      rx="2"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
           )}
 
           {hasScrollPictures && (
