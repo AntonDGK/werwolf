@@ -297,7 +297,7 @@ body {
   font-size: 1.2rem;
   font-weight: 600;
   font-family: inherit;
-  transform: translateY(-15%);
+  transform: translateY(-25%);
   transition: .15s;
   color: rgb(var(--secondary));
 }
