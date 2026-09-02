@@ -94,7 +94,7 @@ function Fragen({
     <section className="fragen-layout">
       <section className="fragen-karte">
         <header className="fragen-kopf">
-          <p className="fragen-label">Frage</p>
+          <p className="fragen-label"></p>
 
           <h2 className="fragen-text">
             {question.question}
