@@ -220,7 +220,12 @@
           "type": "standard",
           "question": "Frage 5.2",
           "answer": "Antwort 5.2",
-          "extras": []
+          "extras": [
+            {
+              "type": "audio",
+              "file": "gutgenug.mp3"
+            }
+          ]
         },
         {
           "id": "5-300",
