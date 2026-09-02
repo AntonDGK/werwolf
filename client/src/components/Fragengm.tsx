@@ -118,7 +118,7 @@ function Fragengm({
     <section className="fragen-layout fragen-layout-gm">
       <section className="fragen-karte">
         <header className="fragen-kopf">
-          <p className="fragen-label">Frage</p>
+          <p className="fragen-label"></p>
 
           <h2 className="fragen-text">
             {question.question}
