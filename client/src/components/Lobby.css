@@ -286,10 +286,6 @@
 /* From Uiverse.io by r7chardgh */ 
 /* The switch - the box around the slider */
 .switch {
-  position: fixed;
-  top: -9vh;
-  right: -92.5vw;
-
   font-size: 20px;
   position: relative;
   display: inline-block;
