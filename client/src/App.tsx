@@ -510,7 +510,118 @@ function App() {
     setCurrentTeam(team);
   };
 
-  
+  useEffect(() => {
+    const audio = audioRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    // Beim Verlassen oder Wechseln der Frage Audio entfernen.
+    if (!audioState) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+      setAudioBlocked(false);
+      return;
+    }
+
+    let cancelled = false;
+    const receivedAt = performance.now();
+
+    const source = new URL(
+      audioState.url,
+      serverUrl
+    ).href;
+
+    const applyAudioState = () => {
+      if (cancelled) {
+        return;
+      }
+
+      let position = audioState.positionSeconds;
+
+      if (
+        audioState.isPlaying &&
+        audioState.startedAt !== null
+      ) {
+        // Bereits auf dem Server vergangene Wiedergabezeit.
+        position += Math.max(
+          0,
+          audioState.serverNow - audioState.startedAt
+        ) / 1000;
+
+        // Ladezeit auf diesem Gerät berücksichtigen.
+        position += (performance.now() - receivedAt) / 1000;
+      }
+
+      const duration = audio.duration;
+
+      if (Number.isFinite(duration)) {
+        position = Math.min(position, duration);
+      }
+
+      audio.currentTime = Math.max(0, position);
+
+      if (
+        !audioState.isPlaying ||
+        (Number.isFinite(duration) && position >= duration)
+      ) {
+        audio.pause();
+        setAudioBlocked(false);
+        return;
+      }
+
+      audio.play()
+        .then(() => {
+          if (!cancelled) {
+            setAudioBlocked(false);
+          }
+        })
+        .catch((error: unknown) => {
+          if (cancelled) {
+            return;
+          }
+
+          if (
+            error instanceof DOMException &&
+            error.name === "NotAllowedError"
+          ) {
+            setAudioBlocked(true);
+          } else {
+            console.error("Audio konnte nicht starten:", error);
+          }
+        });
+    };
+
+    audio.pause();
+    setAudioBlocked(false);
+
+    audio.addEventListener(
+      "loadedmetadata",
+      applyAudioState
+    );
+
+    if (audio.src !== source) {
+      audio.src = source;
+      audio.load();
+    } else if (audio.readyState >= 1) {
+      applyAudioState();
+    }
+
+    return () => {
+      cancelled = true;
+
+      audio.removeEventListener(
+        "loadedmetadata",
+        applyAudioState
+      );
+
+      audio.pause();
+    };
+  }, [audioState]);
+
+
   return (
     <main id="app">
         <canvas id="make-me-cool" ref={canvasRef} />
