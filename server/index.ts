@@ -1020,6 +1020,32 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
   }
 );
 
+process.stdin.setEncoding("utf8");
+
+let consoleInput = "";
+
+process.stdin.on("data", (chunk: string) => {
+  consoleInput += chunk;
+
+  let newlineIndex = consoleInput.indexOf("\n");
+
+  while (newlineIndex !== -1) {
+    const command = consoleInput
+      .slice(0, newlineIndex)
+      .trim();
+
+    consoleInput = consoleInput.slice(newlineIndex + 1);
+
+    if (command === "resetCookies") {
+      gameState.cookies = 0;
+      io.emit("cookiesChanged", gameState.cookies);
+      console.log("Cookie-Zähler zurückgesetzt.");
+    }
+
+    newlineIndex = consoleInput.indexOf("\n");
+  }
+});
+
 httpServer.listen(
   3000,
   () => {
