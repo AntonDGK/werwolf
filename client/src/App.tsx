@@ -90,6 +90,8 @@ function App() {
 
   const [volume, setVolume] = useState(100);
 
+  const [cookies, setCookies] = useState(0);
+
   useEffect(() => {
     const canvas = canvasRef.current;
 
@@ -304,7 +306,13 @@ function App() {
       setAudioState(state);
     };
 
+    const handleCookiesChanged = (count: number) => {
+      setCookies(count);
+    };
+
     socket.on("connect", handleConnect);
+
+    socket.on("cookiesChanged", handleCookiesChanged);
 
     socket.on("audioStateChanged", handleAudioStateChanged);
 
@@ -346,6 +354,8 @@ function App() {
 
     return () => {
       socket.off("connect", handleConnect);
+
+      socket.off("cookiesChanged", handleCookiesChanged);
 
       socket.off("audioStateChanged", handleAudioStateChanged);
 
@@ -803,10 +813,17 @@ function App() {
         ))}
 
       </div>
-      <button className="btn-class-name" style={{ "position": "fixed" } as React.CSSProperties}>
+      <button className="btn-class-name" onClick={() => socket.emit("clickCookie")} style={{ "position": "fixed" } as React.CSSProperties}>
         <span className="back"></span>
         <span className="front"></span>
       </button>
+      <div
+        className={`cookie-counter ${
+          cookies === 67 ? "cookie-event-67" : ""
+        }`}
+      >
+        {cookies.toLocaleString("de-DE")}
+      </div>
       <div className="scoreboard-area">
       {phase !== "start" &&
         (isGameMaster ? (

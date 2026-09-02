@@ -391,3 +391,34 @@ body {
   outline: 2px solid #fff;
   outline-offset: 4px;
 }
+
+.cookie-counter {
+  position: fixed;
+  top: calc(3vh + 68px);
+  right: 3vh;
+  z-index: 100;
+
+  min-width: 60px;
+  padding: 6px 12px;
+  box-sizing: border-box;
+
+  color: #fff;
+  background: rgba(43, 30, 18, 0.94);
+  border: 1px solid #ff9500;
+  border-radius: 999px;
+
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+
+.cookie-counter.cookie-event-67 {
+  color: #fff;
+  background: #7928ca;
+  border-color: #e3a5ff;
+  box-shadow: 0 0 20px rgba(190, 90, 255, 0.7);
+}

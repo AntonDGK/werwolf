@@ -22,4 +22,6 @@ export const gameState = {
     positionSeconds: 0,
     startedAt: null as number | null,
   },
+
+  cookies: 0,
 };

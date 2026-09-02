@@ -186,6 +186,8 @@ function getExtrasWithUrls(
 
 io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
 
+    socket.emit("cookiesChanged", gameState.cookies);
+
     socket.emit("usedQuestionsChanged", Array.from(gameState.usedQuestionIds));
 
     socket.on("requestQuiz", () => {socket.emit("quiz", getPublicQuiz());
@@ -314,6 +316,22 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
       console.log(players);
       }
     );
+
+    socket.on("clickCookie", () => {
+      const player = players.find(
+        (player) => player.id === socket.id
+      );
+
+      // Nur beigetretene Spieler und der GM dürfen Cookies sammeln.
+      if (!player) {
+        return;
+      }
+
+      gameState.cookies += 1;
+
+      // Neuen gemeinsamen Stand an alle Geräte senden.
+      io.emit("cookiesChanged", gameState.cookies);
+    });
 
     socket.on("resetBoard", () => {
       const gameMaster = players.find((player) => player.id === socket.id);
