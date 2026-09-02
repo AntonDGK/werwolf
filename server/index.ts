@@ -389,10 +389,10 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
           return;
         }
 
-        if (gameState.usedQuestionIds.has(questionId)) {
-          console.log("Diese Frage wurde bereits gespielt:", questionId);
-          return;
-        }
+        //if (gameState.usedQuestionIds.has(questionId)) {
+        //  console.log("Diese Frage wurde bereits gespielt:", questionId);
+        //  return;
+        //}
 
         gameState.currentQuestionId = questionId;
 
