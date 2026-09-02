@@ -235,13 +235,15 @@ function Fragengm({
               Nächstes Bild zeigen
             </button>
           )}
-
           <button
             className="reveal-answer-button"
             type="button"
             onClick={onRevealAnswer}
+            disabled={revealedAnswer?.questionId === question.id}
           >
-            Ergebnis anzeigen
+            {revealedAnswer?.questionId === question.id
+              ? "Ergebnis angezeigt"
+              : "Ergebnis anzeigen"}
           </button>
         </div>
       </section>

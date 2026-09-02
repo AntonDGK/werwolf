@@ -400,3 +400,12 @@
   font-size: 0.75rem;
   font-weight: 700;
 }
+
+.fragen-aktion .reveal-answer-button:disabled {
+  color: #c4bcb3;
+  background: #574737;
+  border-color: #786552;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
