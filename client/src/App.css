@@ -394,8 +394,8 @@ body {
 
 .cookie-counter {
   position: fixed;
-  top: calc(3vh + 68px);
-  right: 3vh;
+  top: calc(3vh + 8px);
+  right: calc(3vh + 80px);
   z-index: 100;
 
   min-width: 60px;
