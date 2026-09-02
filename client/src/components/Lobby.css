@@ -407,3 +407,18 @@
   transform: rotateX(10deg) rotateY(0deg);
   color: #487bdb;
 }
+
+.switch {
+  position: fixed !important;
+  top: 3vh !important;
+  left: 3vh;
+  right: auto;
+  bottom: auto;
+  margin: 0;
+  transform: none;
+}
+
+.switch > .toggle {
+  top: 0;
+  left: 0;
+}
