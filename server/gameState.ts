@@ -15,4 +15,11 @@ export const gameState = {
   buzzerPlayerId: null as string | null,
 
   revealedPictureCount: 0,
+  // Gemeinsamer Audiostatus
+  audio: {
+    extraIndex: null as number | null,
+    isPlaying: false,
+    positionSeconds: 0,
+    startedAt: null as number | null,
+  },
 };

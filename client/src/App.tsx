@@ -9,6 +9,7 @@ import type {
   RevealedAnswer,
   BuzzerWinner,
   QuestionExtra,
+  AudioState,
 } from "./types/Quiz";
 
 import JoinScreen from "./components/JoinScreen";
@@ -21,7 +22,7 @@ import Boardgm from "./components/Boardgm";
 import Fragen from "./components/Fragen";
 import Fragengm from "./components/Fragengm";
 
-import { socket } from "./socket";
+import { socket, serverUrl } from "./socket";
 
 //Hier der geklaute Hintergrund
 import { ThpaceGL } from 'thpace';
@@ -35,6 +36,8 @@ type GamePhase =
 function App() {
   //geklauter Hintergrund
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const [phase, setPhase] =
     useState<GamePhase>("start");
@@ -79,8 +82,11 @@ function App() {
     }[]
   >([]);
   
-  const [currentTeam, setCurrentTeam] =
-    useState<string | null>(null);
+  const [currentTeam, setCurrentTeam] = useState<string | null>(null);
+
+  const [audioState, setAudioState] = useState<AudioState | null>(null);
+
+  const [audioBlocked, setAudioBlocked] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -174,6 +180,7 @@ function App() {
         newPhase === "board" ||
         newPhase === "lobby"
       ) {
+        setAudioState(null);
         setCurrentPublicQuestion(null);
         setCurrentQuestion(null);
         setRevealedAnswer(null);
@@ -204,6 +211,7 @@ function App() {
       console.log("Öffentliche Frage empfangen:", question.id);
 
       setCurrentPublicQuestion(question);
+      setAudioState(null);
       setPointValue(question.points);
       setTeamTextsRevealed(false);
       
@@ -290,7 +298,13 @@ function App() {
       });
     };
 
+    const handleAudioStateChanged = (state: AudioState) => {
+      setAudioState(state);
+    };
+
     socket.on("connect", handleConnect);
+
+    socket.on("audioStateChanged", handleAudioStateChanged);
 
     socket.on("picturesRevealed", handlePicturesRevealed);  
 
@@ -330,6 +344,8 @@ function App() {
 
     return () => {
       socket.off("connect", handleConnect);
+
+      socket.off("audioStateChanged", handleAudioStateChanged);
 
       socket.off("picturesRevealed", handlePicturesRevealed);
 
@@ -429,6 +445,33 @@ function App() {
     socket.emit("revealNextPicture");
   };
 
+  const handlePlayAudio = (extraIndex: number) => {
+    if (!currentQuestion) {
+      return;
+    }
+
+    socket.emit("playAudio", {
+      questionId: currentQuestion.id,
+      extraIndex,
+    });
+  };
+
+  const handlePauseAudio = () => {
+    if (!currentQuestion) {
+      return;
+    }
+
+    socket.emit("pauseAudio", currentQuestion.id);
+  };
+
+  const handleResetAudio = () => {
+    if (!currentQuestion) {
+      return;
+    }
+
+    socket.emit("resetAudio", currentQuestion.id);
+  };
+
   const handleBuzz = () => {
     socket.emit("buzz");
   };
@@ -471,6 +514,7 @@ function App() {
   return (
     <main id="app">
         <canvas id="make-me-cool" ref={canvasRef} />
+        <audio ref={audioRef} preload="metadata" />
       <div className="app-content">
       <h1 id="quiz-title">Katzencafé-Quiz</h1>
       <div className="game-area">
@@ -528,6 +572,9 @@ function App() {
                     )
                   : []
               }
+              onPlayAudio={handlePlayAudio}
+              onPauseAudio={handlePauseAudio}
+              onResetAudio={handleResetAudio}
             />
           ) : (
             <section>

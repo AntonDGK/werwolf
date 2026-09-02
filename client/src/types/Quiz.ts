@@ -67,3 +67,13 @@ export type BuzzerWinner = {
   playerName: string;
   groupName: string;
 };
+
+export type AudioState = {
+  questionId: string;
+  url: string;
+  extraIndex: number;
+  isPlaying: boolean;
+  positionSeconds: number;
+  startedAt: number | null;
+  serverNow: number;
+};

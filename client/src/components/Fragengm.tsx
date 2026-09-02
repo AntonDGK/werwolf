@@ -17,6 +17,9 @@ type FragengmProps = {
   question: Question;
   onRevealAnswer: () => void;
   onRevealNextPicture: () => void;
+  onPlayAudio: (extraIndex: number) => void;
+  onPauseAudio: () => void;
+  onResetAudio: () => void;
   buzzerWinner: BuzzerWinner | null;
   onResetBuzzer: () => void;
   submittedTeamTexts: {
@@ -34,6 +37,9 @@ function Fragengm({
   revealedScrollPictures,
   onRevealAnswer,
   onRevealNextPicture,
+  onPlayAudio,
+  onPauseAudio,
+  onResetAudio,
   buzzerWinner,
   onResetBuzzer,
   submittedTeamTexts,
@@ -76,7 +82,7 @@ function Fragengm({
       );
   }
 
-  // Der GM sieht normale Bilder und alle freigegebenen Scrollbilder.
+  // Normale Bilder und alle bereits freigegebenen Scrollbilder.
   const questionPictures = [
     ...question.extras.filter(
       (extra) => extra.type === "picture" && extra.url
@@ -90,6 +96,15 @@ function Fragengm({
   const hasScrollPictures = question.extras.some(
     (extra) => extra.type === "picturescroll"
   );
+
+  // Den ursprünglichen Index in der vollständigen Extras-Liste
+  // erhalten, damit der Server die richtige Audiodatei auswählt.
+  const audioExtras = question.extras
+    .map((extra, extraIndex) => ({
+      extra,
+      extraIndex,
+    }))
+    .filter(({ extra }) => extra.type === "audio");
 
   const revealedPictures =
     revealedAnswer?.questionId === question.id
@@ -123,6 +138,39 @@ function Fragengm({
         ))}
 
         <div className="fragen-aktion">
+          {audioExtras.length > 0 && (
+            <>
+              <h3 className="fragen-label">Audio</h3>
+
+              {audioExtras.map(({ extraIndex }, index) => (
+                <button
+                  key={extraIndex}
+                  className="next-picture-button"
+                  type="button"
+                  onClick={() => onPlayAudio(extraIndex)}
+                >
+                  Audio {index + 1} starten / fortsetzen
+                </button>
+              ))}
+
+              <button
+                className="next-picture-button"
+                type="button"
+                onClick={onPauseAudio}
+              >
+                Audio pausieren
+              </button>
+
+              <button
+                className="next-picture-button"
+                type="button"
+                onClick={onResetAudio}
+              >
+                Audio zurücksetzen
+              </button>
+            </>
+          )}
+
           {hasScrollPictures && (
             <button
               className="next-picture-button"

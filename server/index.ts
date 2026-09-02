@@ -106,6 +106,10 @@ app.get("/media/:questionId/:extraIndex", (req, res) => {
     (
       extra.type === "revealpicture" &&
       gameState.answerRevealed
+    ) ||
+    (
+      extra.type === "audio" &&
+      gameState.audio.extraIndex === Number(extraIndex)
     );
 
   if (!isVisible) {
@@ -131,6 +135,10 @@ app.get("/media/:questionId/:extraIndex", (req, res) => {
     ".webp",
     ".gif",
     ".avif",
+    ".mp3",
+    ".wav",
+    ".ogg",
+    ".m4a",
   ]);
 
   const extension = path.extname(extra.file).toLowerCase();
@@ -319,6 +327,12 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
       gameState.currentQuestionId = null;
       gameState.answerRevealed = false;
       gameState.revealedPictureCount = 0;
+      gameState.audio = {
+        extraIndex: null,
+        isPlaying: false,
+        positionSeconds: 0,
+        startedAt: null,
+      };
       gameState.currentTeam = null;
       gameState.buzzerPlayerId = null;
 
@@ -384,6 +398,12 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
 
         gameState.answerRevealed = false;
         gameState.revealedPictureCount = 0;
+        gameState.audio = {
+          extraIndex: null,
+          isPlaying: false,
+          positionSeconds: 0,
+          startedAt: null,
+        };
 
         gameState.usedQuestionIds.add(questionId);
 
@@ -452,6 +472,179 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
       gameState.buzzerPlayerId = null;
 
       io.emit("buzzerReset");
+    });
+
+    socket.on(
+      "playAudio",
+      (
+        payload: {
+          questionId: string;
+          extraIndex: number;
+        } | null
+      ) => {
+        const gameMaster = players.find(
+          (player) => player.id === socket.id
+        );
+
+        if (!gameMaster?.isGameMaster || !payload) {
+          return;
+        }
+
+        const { questionId, extraIndex } = payload;
+
+        if (
+          currentPhase !== "frage" ||
+          questionId !== gameState.currentQuestionId ||
+          !Number.isInteger(extraIndex) ||
+          extraIndex < 0
+        ) {
+          return;
+        }
+
+        const question = getQuestionById(questionId);
+
+        if (!question) {
+          return;
+        }
+
+        const extra = getExtrasWithUrls(question)[extraIndex];
+
+        if (!extra || extra.type !== "audio" || !extra.url) {
+          return;
+        }
+
+        const isSameAudio =
+          gameState.audio.extraIndex === extraIndex;
+
+        // Erneutes Starten einer bereits laufenden Datei ignorieren.
+        if (isSameAudio && gameState.audio.isPlaying) {
+          return;
+        }
+
+        const now = Date.now();
+
+        gameState.audio = {
+          extraIndex,
+          isPlaying: true,
+          positionSeconds: isSameAudio
+            ? gameState.audio.positionSeconds
+            : 0,
+          startedAt: now,
+        };
+
+        io.emit("audioStateChanged", {
+          questionId: question.id,
+          url: extra.url,
+          ...gameState.audio,
+          serverNow: now,
+        });
+      }
+    );
+
+    socket.on("pauseAudio", (questionId: string) => {
+      const gameMaster = players.find(
+        (player) => player.id === socket.id
+      );
+
+      if (!gameMaster?.isGameMaster) {
+        return;
+      }
+
+      if (
+        currentPhase !== "frage" ||
+        questionId !== gameState.currentQuestionId
+      ) {
+        return;
+      }
+
+      const audio = gameState.audio;
+
+      if (
+        !audio.isPlaying ||
+        audio.extraIndex === null ||
+        audio.startedAt === null
+      ) {
+        return;
+      }
+
+      const question = getQuestionById(questionId);
+
+      if (!question) {
+        return;
+      }
+
+      const extra = getExtrasWithUrls(question)[audio.extraIndex];
+
+      if (!extra || extra.type !== "audio" || !extra.url) {
+        return;
+      }
+
+      const now = Date.now();
+
+      gameState.audio = {
+        extraIndex: audio.extraIndex,
+        isPlaying: false,
+        positionSeconds:
+          audio.positionSeconds +
+          Math.max(0, now - audio.startedAt) / 1000,
+        startedAt: null,
+      };
+
+      io.emit("audioStateChanged", {
+        questionId: question.id,
+        url: extra.url,
+        ...gameState.audio,
+        serverNow: now,
+      });
+    });
+
+    socket.on("resetAudio", (questionId: string) => {
+      const gameMaster = players.find(
+        (player) => player.id === socket.id
+      );
+
+      if (!gameMaster?.isGameMaster) {
+        return;
+      }
+
+      if (
+        currentPhase !== "frage" ||
+        questionId !== gameState.currentQuestionId
+      ) {
+        return;
+      }
+
+      const extraIndex = gameState.audio.extraIndex;
+
+      if (extraIndex === null) {
+        return;
+      }
+
+      const question = getQuestionById(questionId);
+
+      if (!question) {
+        return;
+      }
+
+      const extra = getExtrasWithUrls(question)[extraIndex];
+
+      if (!extra || extra.type !== "audio" || !extra.url) {
+        return;
+      }
+
+      gameState.audio = {
+        extraIndex,
+        isPlaying: false,
+        positionSeconds: 0,
+        startedAt: null,
+      };
+
+      io.emit("audioStateChanged", {
+        questionId: question.id,
+        url: extra.url,
+        ...gameState.audio,
+        serverNow: Date.now(),
+      });
     });
 
     socket.on("revealNextPicture", () => {
