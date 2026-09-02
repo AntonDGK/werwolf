@@ -473,6 +473,37 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
 
       gameState.buzzerPlayerId = player.id;
 
+      // Laufendes Audio beim erfolgreichen Buzzern pausieren.
+      const audio = gameState.audio;
+
+      if (
+        audio.isPlaying &&
+        audio.extraIndex !== null &&
+        audio.startedAt !== null
+      ) {
+        const extra = getExtrasWithUrls(question)[audio.extraIndex];
+
+        if (extra?.type === "audio" && extra.url) {
+          const now = Date.now();
+
+          gameState.audio = {
+            extraIndex: audio.extraIndex,
+            isPlaying: false,
+            positionSeconds:
+              audio.positionSeconds +
+              Math.max(0, now - audio.startedAt) / 1000,
+            startedAt: null,
+          };
+
+          io.emit("audioStateChanged", {
+            questionId: question.id,
+            url: extra.url,
+            ...gameState.audio,
+            serverNow: now,
+          });
+        }
+      }
+
       console.log("${player.name} hat gebuzzert.");
 
       io.emit("buzzAccepted", {
