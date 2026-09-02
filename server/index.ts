@@ -341,6 +341,8 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
         return;
       }
 
+      gameState.cookies = 0;
+      io.emit("cookiesChanged", gameState.cookies);
       gameState.usedQuestionIds.clear();
       gameState.currentQuestionId = null;
       gameState.answerRevealed = false;
