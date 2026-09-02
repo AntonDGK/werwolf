@@ -39,7 +39,7 @@ function Boardgm({
                       ? "question-field-used"
                       : "question-field"
                   }
-                  disabled={isUsed}
+                  //disabled={isUsed}
                   onClick={() =>
                     onSelectQuestion(
                       question.id,

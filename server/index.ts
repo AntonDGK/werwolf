@@ -938,6 +938,19 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
 
       if (players.length === 0) {
         currentPhase = "lobby";
+
+        gameState.currentQuestionId = null;
+        gameState.answerRevealed = false;
+        gameState.currentTeam = null;
+        gameState.buzzerPlayerId = null;
+        gameState.revealedPictureCount = 0;
+
+        gameState.audio = {
+          extraIndex: null,
+          isPlaying: false,
+          positionSeconds: 0,
+          startedAt: null,
+        };
       }
 
       if (
