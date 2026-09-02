@@ -936,6 +936,10 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
 
       players.splice(index, 1);
 
+      if (players.length === 0) {
+        currentPhase = "lobby";
+      }
+
       if (
         wasGameMaster &&
         players.length > 0
@@ -945,8 +949,24 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
         newGameMaster.isGameMaster = true;
 
         io.to(newGameMaster.id).emit("joinedAdmin");
-
         io.to(newGameMaster.id).emit("phaseChanged", currentPhase);
+
+        // Dem neuen GM die vollständige aktuelle Frage senden.
+        if (
+          currentPhase === "frage" &&
+          gameState.currentQuestionId
+        ) {
+          const question = getQuestionById(
+            gameState.currentQuestionId
+          );
+
+          if (question) {
+            io.to(newGameMaster.id).emit("questionSelectedGM", {
+              ...question,
+              extras: getExtrasWithUrls(question),
+            });
+          }
+        }
       }
 
       const teams = getTeamKeys();
