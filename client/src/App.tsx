@@ -626,6 +626,43 @@ function App() {
     <main id="app">
         <canvas id="make-me-cool" ref={canvasRef} />
         <audio ref={audioRef} preload="metadata" />
+        {audioBlocked && audioState?.isPlaying && (
+        <button
+          type="button"
+          style={{
+            position: "fixed",
+            top: "16px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 11000,
+            padding: "14px 24px",
+            border: "1px solid #ff9500",
+            borderRadius: "12px",
+            background: "#332416",
+            color: "#fff",
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+          onClick={() => {
+            const audio = audioRef.current;
+
+            if (!audio) {
+              return;
+            }
+
+            audio.play()
+              .then(() => setAudioBlocked(false))
+              .catch((error: unknown) => {
+                console.error(
+                  "Audio konnte nicht aktiviert werden:",
+                  error
+                );
+              });
+          }}
+        >
+          Audio auf diesem Gerät aktivieren
+        </button>
+      )}
       <div className="app-content">
       <h1 id="quiz-title">Katzencafé-Quiz</h1>
       <div className="game-area">
