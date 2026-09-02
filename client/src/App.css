@@ -306,12 +306,3 @@ body {
   transform: translateY(0%);
   box-shadow: 0 0;
 }
-
-.switch {
-  position: fixed;
-  top: 6vh;
-  left: 3vh;
-  right: auto;
-  bottom: auto;
-  z-index: 100;
-}

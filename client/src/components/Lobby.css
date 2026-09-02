@@ -287,7 +287,13 @@
 /* The switch - the box around the slider */
 .switch {
   font-size: 20px;
-  position: relative;
+  position: fixed;
+  top: 3vh;
+  left: 3vh;
+  right: auto;
+  bottom: auto;
+  z-index: 100;
+
   display: inline-block;
   width: 5em;
   height: 2.5em;
