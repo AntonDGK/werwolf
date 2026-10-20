@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { socket } from "../socket";
 
 type Signal =
@@ -367,8 +368,16 @@ export default function CameraPreview() {
   };
 
   return (
-    <section style={{ maxWidth: 600, width: "100%", boxSizing: "border-box", margin: "12px auto", color: "white" }}>
-      <details style={{ background: "#251d19", borderRadius: 12, border: "1px solid #71584b" }}>
+    <section style={{
+      width: "min(960px, calc(100vw - 32px))",
+      maxWidth: "none",
+      boxSizing: "border-box",
+      margin: "16px auto 28px",
+      position: "relative",
+      zIndex: 1000,
+      color: "white",
+    }}>
+      <details style={{ background: "#251d19", borderRadius: 12, border: "1px solid #71584b", width: "100%", boxSizing: "border-box" }}>
         <summary style={{ cursor: "pointer", padding: "12px 16px", fontWeight: 700 }}>
           Kamera &amp; WebRTC-Test {inCall ? "🔴 Übertragung aktiv" : active ? "🟢 Private Vorschau aktiv" : "(eingeklappt)"}
           {pendingOffer ? " – Videoanfrage erhalten!" : ""}
@@ -413,11 +422,9 @@ export default function CameraPreview() {
         </button>
       </div>
       {pendingOffer && (
-        <div style={{ border: "1px solid #d6a949", padding: 12, marginTop: 12 }}>
-          <p>Videoanfrage von <code style={{ wordBreak: "break-all" }}>{pendingOffer.senderId}</code></p>
-          <button type="button" onClick={() => void acceptOffer()}>Video annehmen</button>{" "}
-          <button type="button" onClick={rejectOffer}>Ablehnen</button>
-        </div>
+        <p style={{ padding: 12, border: "1px solid #d6a949", borderRadius: 8 }}>
+          Eine Videoanfrage wartet auf deine Entscheidung. Die Schaltflächen werden in einem separaten Dialog über der Seite angezeigt.
+        </p>
       )}
       <p role="status">{callStatus}</p>
       <video ref={remoteVideoRef} autoPlay playsInline muted controls={false}
@@ -425,6 +432,41 @@ export default function CameraPreview() {
       <small>Nur privater Techniktest. Noch keine Einladungscodes oder Zugangskontrolle. Bei Bildschirmaufnahme kann auch das empfangene Video im Stream sichtbar sein.</small>
         </div>
       </details>
+      {pendingOffer && createPortal(
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 2147483647,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          overflowY: "auto", boxSizing: "border-box", padding: 20,
+          background: "rgba(0, 0, 0, 0.82)", pointerEvents: "auto",
+        }}>
+          <div role="dialog" aria-modal="true" aria-label="Eingehende Videoanfrage" style={{
+            width: "min(680px, 100%)", boxSizing: "border-box", padding: 28,
+            border: "2px solid #e6b65a", borderRadius: 16,
+            background: "#251d19", color: "white",
+            boxShadow: "0 12px 60px rgba(0,0,0,0.7)",
+            position: "relative", zIndex: 1,
+          }}>
+            <h2 style={{ marginTop: 0 }}>📹 Eingehende Videoanfrage</h2>
+            <p>Ein anderer Spieler möchte dir sein Kamerabild zeigen.</p>
+            <p style={{ overflowWrap: "anywhere", fontSize: 14 }}>
+              Sender-ID: <code>{pendingOffer.senderId}</code>
+            </p>
+            <p>Deine eigene Kamera wird durch die Annahme <strong>nicht</strong> aktiviert oder übertragen.</p>
+            <p style={{ fontSize: 13 }}>Achtung: Das empfangene Bild kann in einer Bildschirmaufnahme sichtbar werden.</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 18 }}>
+              <button type="button" onClick={() => void acceptOffer()} style={{
+                minHeight: 50, padding: "12px 22px", cursor: "pointer",
+                position: "relative", zIndex: 2,
+              }}>Video annehmen</button>
+              <button type="button" onClick={rejectOffer} style={{
+                minHeight: 50, padding: "12px 22px", cursor: "pointer",
+                position: "relative", zIndex: 2,
+              }}>Ablehnen</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </section>
   );
 }
