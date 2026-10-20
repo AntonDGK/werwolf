@@ -21,6 +21,7 @@ import Board from "./components/Board";
 import Boardgm from "./components/Boardgm";
 import Fragen from "./components/Fragen";
 import Fragengm from "./components/Fragengm";
+import CameraPreview from "./components/CameraPreview";
 
 import { socket, serverUrl } from "./socket";
 
@@ -730,7 +731,10 @@ function App() {
       <h1 id="quiz-title">Katzencafé-Quiz</h1>
       <div className="game-area">
       {phase === "start" && (
-        <JoinScreen onJoin={handleJoin} />
+        <>
+          <CameraPreview />
+          <JoinScreen onJoin={handleJoin} />
+        </>
       )}
 
       {phase === "lobby" &&
