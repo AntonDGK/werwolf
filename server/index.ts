@@ -978,6 +978,37 @@ io.on("connection", (socket) => {socket.emit("quiz", getPublicQuiz());
       io.emit("currentTeamChanged", gameState.currentTeam);
     });
 
+    // WebRTC: Verbindungsinformationen zwischen Spielern vermitteln.
+    // Es werden keine Kamerabilder über Socket.IO übertragen.
+
+    socket.on(
+      "webrtc:signal",
+      (data: {
+        targetId: string;
+        signal: unknown;
+      }) => {
+        // Nur Spieler, die der Lobby beigetreten sind.
+        const sender = players.find(
+          (player) => player.id === socket.id
+        );
+
+        if (!sender) return;
+
+        // Nur an einen tatsächlich vorhandenen Spieler senden.
+        const receiver = players.find(
+          (player) => player.id === data?.targetId
+        );
+
+        if (!receiver || receiver.id === socket.id) return;
+
+        // Nur die Signalisierung an den Empfänger weiterleiten.
+        io.to(receiver.id).emit("webrtc:signal", {
+          senderId: socket.id,
+          signal: data.signal,
+        });
+      }
+    );
+
     socket.on("disconnect", () => {
       const index = players.findIndex((player) => player.id === socket.id);
 
