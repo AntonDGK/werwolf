@@ -367,8 +367,15 @@ export default function CameraPreview() {
   };
 
   return (
-    <section style={{ maxWidth: 600, margin: "24px auto", padding: 20, background: "#251d19", color: "white", borderRadius: 16 }}>
+    <section style={{ maxWidth: 600, width: "100%", boxSizing: "border-box", margin: "12px auto", color: "white" }}>
+      <details style={{ background: "#251d19", borderRadius: 12, border: "1px solid #71584b" }}>
+        <summary style={{ cursor: "pointer", padding: "12px 16px", fontWeight: 700 }}>
+          Kamera &amp; WebRTC-Test {inCall ? "🔴 Übertragung aktiv" : active ? "🟢 Private Vorschau aktiv" : "(eingeklappt)"}
+          {pendingOffer ? " – Videoanfrage erhalten!" : ""}
+        </summary>
+        <div style={{ padding: "0 16px 16px" }}>
       <h2>Meine Kamera – sichere Vorschau</h2>
+      <p style={{ fontSize: 13 }}>Einklappen stoppt die Kamera oder eine laufende Übertragung nicht. Verwende dafür „Kamera ausschalten“ bzw. „Übertragung stoppen“.</p>
       <p>Keine Kamera wird automatisch gestartet. Eine Übertragung braucht eine zusätzliche Bestätigung.</p>
       <label htmlFor="camera-source">Kameraquelle</label>
       <select id="camera-source" value={deviceId}
@@ -416,6 +423,8 @@ export default function CameraPreview() {
       <video ref={remoteVideoRef} autoPlay playsInline muted controls={false}
         style={{ display: remoteVisible ? "block" : "none", width: "100%", maxHeight: 320, background: "black" }} />
       <small>Nur privater Techniktest. Noch keine Einladungscodes oder Zugangskontrolle. Bei Bildschirmaufnahme kann auch das empfangene Video im Stream sichtbar sein.</small>
+        </div>
+      </details>
     </section>
   );
 }
