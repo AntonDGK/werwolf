@@ -730,11 +730,9 @@ function App() {
       <div className="app-content">
       <h1 id="quiz-title">Katzencafé-Quiz</h1>
       <div className="game-area">
+      <CameraPreview />
       {phase === "start" && (
-        <>
-          <CameraPreview />
-          <JoinScreen onJoin={handleJoin} />
-        </>
+        <JoinScreen onJoin={handleJoin} />
       )}
 
       {phase === "lobby" &&
