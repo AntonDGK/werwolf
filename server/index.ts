@@ -26,6 +26,11 @@ type GamePhase =
 
 const app = express();
 
+app.use((req, res, next) => {
+  console.log(`[HTTP] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 const httpServer =
   createServer(app);
 
