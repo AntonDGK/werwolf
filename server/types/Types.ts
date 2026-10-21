@@ -1,26 +1,15 @@
 
 /**
- * WERWOLF ENGINE
- * Gemeinsame Typen für den Spielablauf
+ * WERWOLF ENGINE – GEMEINSAME TYPEN
  */
 
-// Die fünf Hauptphasen des Spiels.
-export type GamePhase =
-  | "lobby"
-  | "preparation"
-  | "night"
-  | "day"
-  | "finished";
+// Berechtigungen auf der Webseite
+export type UserRole =
+  | "gamemaster"
+  | "storyteller"
+  | "player";
 
-// Abschnitte während des Tages.
-export type DayStep =
-  | "announcement" // Ergebnisse der Nacht verkünden
-  | "discussion"   // Spieler diskutieren
-  | "voting"       // Spieler stimmen ab
-  | "resolution";  // Abstimmung auswerten
-
-// Werwolf-Rollen im Spiel.
-// Diese Liste können wir später erweitern.
+// Geheime Rollen innerhalb einer Spielrunde
 export type WerewolfRole =
   | "villager"
   | "werewolf"
@@ -30,8 +19,22 @@ export type WerewolfRole =
   | "hunter"
   | "cupid";
 
-// Welche Rolle ist gerade in der Nacht am Zug?
-// null = kein Nachtzug aktiv
+// Hauptphasen
+export type GamePhase =
+  | "lobby"
+  | "preparation"
+  | "night"
+  | "day"
+  | "finished";
+
+// Tagesabschnitte
+export type DayStep =
+  | "announcement"
+  | "discussion"
+  | "voting"
+  | "resolution";
+
+// Nachtabschnitte
 export type NightStep =
   | "werewolves"
   | "seer"
@@ -40,52 +43,24 @@ export type NightStep =
   | "cupid"
   | null;
 
-// Aktionen, die Spieler nachts auswählen können.
-// Die tatsächliche Erlaubnis prüft später der Server.
+// Aktionen während der Nacht
 export type NightAction =
-  | {
-      type: "werewolf_kill";
-      targetId: string;
-    }
-  | {
-      type: "seer_inspect";
-      targetId: string;
-    }
-  | {
-      type: "healer_protect";
-      targetId: string;
-    }
-  | {
-      type: "witch_heal";
-      targetId: string;
-    }
-  | {
-      type: "witch_poison";
-      targetId: string;
-    }
-  | {
-      type: "cupid_link";
-      targetIds: [string, string];
-    };
+  | { type: "werewolf_kill"; targetId: string }
+  | { type: "seer_inspect"; targetId: string }
+  | { type: "healer_protect"; targetId: string }
+  | { type: "witch_heal"; targetId: string }
+  | { type: "witch_poison"; targetId: string }
+  | { type: "cupid_link"; targetIds: [string, string] };
 
-// Der aktuelle Zustand einer Werwolf-Runde.
+// Spielzustand
 export type GameState = {
   phase: GamePhase;
-
-  // Aktuelle Nacht / aktueller Tag
   round: number;
-
-  // Nur während der Nacht relevant
   nightStep: NightStep;
-
-  // Nur während des Tages relevant
   dayStep: DayStep | null;
-
-  // Ob die Runde momentan läuft
   gameStarted: boolean;
 };
 
-// Standardzustand für eine neue Runde.
 export const initialGameState: GameState = {
   phase: "lobby",
   round: 0,
