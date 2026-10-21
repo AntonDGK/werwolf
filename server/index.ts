@@ -62,7 +62,6 @@ io.on("connection", (socket) => {
 
   socket.on("admin:login", (password: unknown) => {
     const adminPassword = process.env.ADMIN_PASSWORD;
-    console.log(adminPassword);
     console.log(
       "ADMIN_PASSWORD vorhanden:",
       Boolean(adminPassword),
@@ -367,7 +366,15 @@ io.on("connection", (socket) => {
 const PORT = Number(process.env.PORT) || 3000;
 
 httpServer.listen(PORT, "0.0.0.0", () => {
+  console.log(`Werwolf Engine Server läuft auf Port ${PORT}`);
+
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  console.log("=== ADMIN KONFIGURATION ===");
+  console.log("Passwort vorhanden:", Boolean(adminPassword));
   console.log(
-    `Werwolf Engine Server läuft auf Port ${PORT}`
+    "Mindestens 16 Zeichen:",
+    (adminPassword?.length ?? 0) >= 16
   );
+  console.log("===========================");
 });
