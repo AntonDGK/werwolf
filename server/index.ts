@@ -1,6 +1,5 @@
-
 import express from "express";
-import {createHash, timingSafeEqual, randomBytes, scryptSync} from "crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -12,13 +11,13 @@ const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin:
-      process.env.CLIENT_URL?.trim() ||
-      "http://localhost:5173",
+    origin: process.env.CLIENT_URL?.trim() || "http://localhost:5173",
     methods: ["GET", "POST"],
   },
 });
 
+// Vorläufige Speicherung im Arbeitsspeicher.
+// TODO: Konten, Sperrungen und Spielzustand dauerhaft speichern.
 const players: Player[] = [];
 
 type PlayerAccount = {
@@ -29,7 +28,6 @@ type PlayerAccount = {
 
 const playerAccounts = new Map<string, PlayerAccount>();
 
-// TODO: Später durch dauerhaft gespeicherte Rate-Limits ersetzen.
 const loginAttempts = new Map<
   string,
   { count: number; resetAt: number }
@@ -41,8 +39,8 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 // TODO: Später durch die richtige Werwolf-Spielsteuerung ersetzen.
 const currentPhase: GamePhase = "lobby";
 
-// Öffentliche Spielerliste ohne geheime Werwolf-Rollen.
 function broadcastPlayers(): void {
+  // Geheime Rollen oder Passwörter niemals öffentlich senden.
   const publicPlayers = players.map((player) => ({
     id: player.id,
     name: player.name,
@@ -64,44 +62,31 @@ io.on("connection", (socket) => {
   // GAMEMASTER-LOGIN
   // =====================================================
 
-  // TODO: Später zusätzlich IP-basierte Rate-Limits,
-  // dauerhafte Sitzungen und sichere Account-Verwaltung.
+  // TODO: Zusätzlich ein übergreifendes Rate-Limit (IP/Account)
+  // implementieren. Dieses Limit gilt nur pro Verbindung.
   let failedAdminAttempts = 0;
 
   socket.on("admin:login", (password: unknown) => {
     const adminPassword = process.env.ADMIN_PASSWORD;
 
-    // Ohne gültige Konfiguration keinen Adminzugang erlauben.
     if (!adminPassword || adminPassword.length < 16) {
-      socket.emit(
-        "auth:error",
-        "Adminzugang nicht konfiguriert."
-      );
+      socket.emit("auth:error", "Adminzugang nicht konfiguriert.");
       return;
     }
 
-    // Vorläufige Begrenzung pro Socket-Verbindung.
     if (failedAdminAttempts >= 5) {
       socket.emit("auth:error", "Zu viele Fehlversuche.");
       return;
     }
 
-    if (
-      typeof password !== "string" ||
-      password.length > 256
-    ) {
+    if (typeof password !== "string" || password.length > 256) {
       failedAdminAttempts++;
       socket.emit("auth:error", "Anmeldung fehlgeschlagen.");
       return;
     }
 
-    const expected = createHash("sha256")
-      .update(adminPassword)
-      .digest();
-
-    const received = createHash("sha256")
-      .update(password)
-      .digest();
+    const expected = createHash("sha256").update(adminPassword).digest();
+    const received = createHash("sha256").update(password).digest();
 
     if (!timingSafeEqual(expected, received)) {
       failedAdminAttempts++;
@@ -109,22 +94,13 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Ein Socket darf nur eine Identität besitzen.
     if (players.some((player) => player.id === socket.id)) {
       socket.emit("auth:error", "Bereits angemeldet.");
       return;
     }
 
-    // Vorerst nur ein aktiver Gamemaster.
-    if (
-      players.some(
-        (player) => player.userRole === "gamemaster"
-      )
-    ) {
-      socket.emit(
-        "auth:error",
-        "Gamemaster bereits angemeldet."
-      );
+    if (players.some((player) => player.userRole === "gamemaster")) {
+      socket.emit("auth:error", "Gamemaster bereits angemeldet.");
       return;
     }
 
@@ -138,36 +114,20 @@ io.on("connection", (socket) => {
     };
 
     players.push(admin);
-
     socket.emit("joinedAdmin");
     socket.emit("phaseChanged", currentPhase);
-
     broadcastPlayers();
-
     console.log("Gamemaster erfolgreich angemeldet.");
   });
 
-  // =====================================================
-  // SPIELER-BEITRITT
-  // =====================================================
-
-  // TODO: Hier individuelle Spielerpasswörter einbauen.
-  // TODO: Spieler zunächst in einen Warteraum schicken.
-  // TODO: Beitritt erst nach Gamemaster-Freigabe erlauben.
-  //
-  // ACHTUNG: Der Spielerbeitritt ist aktuell noch offen!
-
-  
   // =====================================================
   // SPIELERKONTEN ERSTELLEN – NUR GAMEMASTER
   // =====================================================
 
   socket.on("account:create", (input: unknown) => {
-    // Nur ein angemeldeter Gamemaster darf Konten erstellen.
     const admin = players.find(
       (player) =>
-        player.id === socket.id &&
-        player.userRole === "gamemaster"
+        player.id === socket.id && player.userRole === "gamemaster"
     );
 
     if (!admin) {
@@ -201,17 +161,9 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Ein eigenes, zufälliges Passwort für jeden Spieler.
     const password = randomBytes(18).toString("base64url");
-
-    // Nicht das Passwort, sondern nur den Hash speichern.
     const salt = randomBytes(16).toString("hex");
-
-    const passwordHash = scryptSync(
-      password,
-      salt,
-      64
-    ).toString("hex");
+    const passwordHash = scryptSync(password, salt, 64).toString("hex");
 
     playerAccounts.set(accountKey, {
       name,
@@ -219,68 +171,126 @@ io.on("connection", (socket) => {
       salt,
     });
 
-    // Das Passwort nur an die Gamemaster-Verbindung senden.
-    // Es wird später im Dashboard einmalig angezeigt.
-    socket.emit("account:created", {
-      name,
-      password,
-    });
-
+    // Das Passwort wird ausschließlich an den angemeldeten
+    // Gamemaster-Socket geschickt, niemals an alle Spieler.
+    socket.emit("account:created", { name, password });
     console.log(`Spielerkonto erstellt: ${name}`);
   });
 
+  // =====================================================
+  // SPIELER-LOGIN MIT PERSÖNLICHEM PASSWORT
+  // =====================================================
 
-  socket.on("join", (input: unknown) => {
-    if (typeof input !== "string") return;
-
-    const name = input.trim().slice(0, 30);
-    if (!name) return;
-
-    // Pro Socket nur ein Spieler.
-    if (
-      players.some(
-        (player) => player.id === socket.id
-      )
-    ) {
+  // Wichtig: Der alte passwortlose "join"-Handler ist entfernt.
+  socket.on("player:login", (input: unknown) => {
+    if (players.some((player) => player.id === socket.id)) {
+      socket.emit("auth:error", "Bereits angemeldet.");
       return;
     }
 
-    // Normale Spieler erhalten niemals automatisch
-    // Gamemaster-Rechte.
-    const userRole: UserRole = "player";
+    if (!input || typeof input !== "object") {
+      socket.emit("auth:error", "Anmeldung fehlgeschlagen.");
+      return;
+    }
+
+    const { name, password } = input as {
+      name?: unknown;
+      password?: unknown;
+    };
+
+    if (
+      typeof name !== "string" ||
+      typeof password !== "string" ||
+      name.trim().length < 2 ||
+      name.trim().length > 30 ||
+      password.length === 0 ||
+      password.length > 256
+    ) {
+      socket.emit("auth:error", "Anmeldung fehlgeschlagen.");
+      return;
+    }
+
+    const accountKey = name.trim().toLocaleLowerCase("de-DE");
+    const now = Date.now();
+    const previousAttempts = loginAttempts.get(accountKey);
+
+    if (previousAttempts && previousAttempts.resetAt > now) {
+      if (previousAttempts.count >= MAX_LOGIN_ATTEMPTS) {
+        socket.emit(
+          "auth:error",
+          "Zu viele Anmeldeversuche. Bitte später erneut versuchen."
+        );
+        return;
+      }
+    } else {
+      loginAttempts.delete(accountKey);
+    }
+
+    const account = playerAccounts.get(accountKey);
+    let passwordCorrect = false;
+
+    if (account) {
+      const receivedHash = scryptSync(password, account.salt, 64);
+      const expectedHash = Buffer.from(account.passwordHash, "hex");
+
+      passwordCorrect =
+        receivedHash.length === expectedHash.length &&
+        timingSafeEqual(receivedHash, expectedHash);
+    }
+
+    if (!account || !passwordCorrect) {
+      const attempts = loginAttempts.get(accountKey);
+
+      loginAttempts.set(accountKey, {
+        count: (attempts?.count ?? 0) + 1,
+        resetAt:
+          attempts && attempts.resetAt > now
+            ? attempts.resetAt
+            : now + LOGIN_WINDOW_MS,
+      });
+
+      socket.emit("auth:error", "Anmeldung fehlgeschlagen.");
+      return;
+    }
+
+    if (
+      players.some(
+        (player) =>
+          player.name.toLocaleLowerCase("de-DE") === accountKey
+      )
+    ) {
+      socket.emit("auth:error", "Dieses Konto ist bereits angemeldet.");
+      return;
+    }
+
+    loginAttempts.delete(accountKey);
 
     const newPlayer: Player = {
       id: socket.id,
-      name,
-      userRole,
+      name: account.name,
+      userRole: "player",
       gameRole: null,
       isAlive: true,
       color: null,
     };
 
     players.push(newPlayer);
-
-    // KORRIGIERT:
-    // Normale Spieler bekommen immer das Event "joined".
     socket.emit("joined");
-
     socket.emit("phaseChanged", currentPhase);
-
     broadcastPlayers();
+    console.log(`${account.name} hat sich angemeldet.`);
 
-    console.log(`${name} ist beigetreten (${userRole}).`);
+    // TODO: Vor öffentlichem Einsatz zuerst in den
+    // GM-Freigabe-Warteraum statt direkt in die Lobby.
   });
 
   // =====================================================
   // WEBRTC-SIGNALISIERUNG
   // =====================================================
 
-  // Nur Verbindungsinformationen werden weitergeleitet.
-  // Die Kamerabilder werden NICHT über Socket.IO übertragen.
-  //
-  // TODO: Später nur freigegebene Teilnehmer zulassen.
-  // TODO: WebRTC-Zugriff an sichere Sitzungen koppeln.
-
+  // Kamerabilder werden nicht über Socket.IO übertragen.
+  // TODO: Nur durch den Gamemaster freigegebene Teilnehmer
+  // zur WebRTC-Signalisierung zulassen.
   socket.on("webrtc:signal", (data: unknown) => {
     if (!data || typeof data !== "object") return;
 
@@ -289,30 +299,12 @@ io.on("connection", (socket) => {
       signal?: unknown;
     };
 
-    if (
-      typeof targetId !== "string" ||
-      targetId === socket.id
-    ) {
-      return;
-    }
+    if (typeof targetId !== "string" || targetId === socket.id) return;
+    if (!signal || typeof signal !== "object") return;
 
-    if (!signal || typeof signal !== "object") {
-      return;
-    }
-
-    // Sender und Empfänger müssen aktuell in
-    // der Test-Lobby angemeldet sein.
-    const senderExists = players.some(
-      (player) => player.id === socket.id
-    );
-
-    const receiverExists = players.some(
-      (player) => player.id === targetId
-    );
-
-    if (!senderExists || !receiverExists) {
-      return;
-    }
+    const senderExists = players.some((player) => player.id === socket.id);
+    const receiverExists = players.some((player) => player.id === targetId);
+    if (!senderExists || !receiverExists) return;
 
     const { type, sessionId } = signal as {
       type?: unknown;
@@ -340,35 +332,18 @@ io.on("connection", (socket) => {
   // =====================================================
 
   socket.on("disconnect", () => {
-    const index = players.findIndex(
-      (player) => player.id === socket.id
-    );
-
+    const index = players.findIndex((player) => player.id === socket.id);
     if (index === -1) return;
 
     const [leavingPlayer] = players.splice(index, 1);
+    console.log("Client getrennt:", leavingPlayer.name);
 
-    console.log(
-      "Client getrennt:",
-      leavingPlayer.name
-    );
-
-    // Wichtig:
-    // Niemand erhält beim Verlassen des Gamemasters
-    // automatisch dessen Adminrechte.
-
+    // Niemand erhält automatisch Gamemaster-Rechte.
     broadcastPlayers();
   });
 });
 
-// =====================================================
-// SERVER STARTEN
-// =====================================================
-
 const PORT = Number(process.env.PORT) || 3000;
-
 httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    `Werwolf Engine Server läuft auf Port ${PORT}`
-  );
+  console.log(`Werwolf Engine Server läuft auf Port ${PORT}`);
 });
