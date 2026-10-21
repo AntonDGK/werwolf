@@ -1,35 +1,89 @@
 
-/* Werwolf Engine – neues Basislayout */
+/* 🐺 WERWOLF ENGINE – DARK THEME */
 
+:root {
+  font-family: Inter, Arial, sans-serif;
+  color-scheme: dark;
+  background-color: #17191e;
+  color: #e8eaf0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
 #root {
-  background: #1e1e1e;
+  margin: 0;
   width: 100%;
   min-height: 100vh;
 }
 
+body {
+  background: #17191e;
+  color: #e8eaf0;
+}
+
+/* Hauptbereich */
+
 .werwolf-app {
-  box-sizing: border-box;
   width: 100%;
   min-height: 100vh;
-  margin: 0 auto;
   padding: 24px;
-  color: white;
 }
 
 .werwolf-app h1 {
   text-align: center;
-  margin-bottom: 30px;
+  margin: 20px 0 32px;
 }
 
+/* Panels */
+
 .werwolf-panel {
-  box-sizing: border-box;
   width: 100%;
   max-width: 960px;
   margin: 0 auto 24px;
   padding: 24px;
+
+  background: #23262d;
+  border: 1px solid #363a44;
   border-radius: 16px;
-  background: #251d19;
 }
+
+/* Eingabefelder */
+
+input,
+select,
+textarea {
+  background: #2d313a;
+  color: #ffffff;
+  border: 1px solid #454a55;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+/* Buttons */
+
+button {
+  background: #3b404b;
+  color: #ffffff;
+  border: 1px solid #505662;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #4b5260;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Login */
 
 .join-form {
   display: flex;
@@ -40,11 +94,16 @@
 .join-form input {
   flex: 1;
   min-width: 180px;
-  padding: 12px;
-  font-size: 16px;
 }
 
-.join-form button {
-  padding: 12px 24px;
-  cursor: pointer;
+/* Mobile Ansicht */
+
+@media (max-width: 600px) {
+  .werwolf-app {
+    padding: 12px;
+  }
+
+  .werwolf-panel {
+    padding: 16px;
+  }
 }
