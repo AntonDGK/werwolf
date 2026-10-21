@@ -101,10 +101,14 @@ export default function App() {
         <LoginScreen
           connected={connected}
           loginError={loginError}
-          onPlayerJoin={(playerName) => {
+          onPlayerJoin={(playerName, playerPassword) => {
             setLoginError("");
             setName(playerName);
-            socket.emit("join", playerName);
+
+            socket.emit("player:login", {
+              name: playerName,
+              password: playerPassword,
+            });
           }}
           onAdminLogin={(password) => {
             setLoginError("");

@@ -5,7 +5,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 
 import type { Player } from "./types/Player";
-import type { GamePhase, UserRole } from "./types/Types";
+import type { GamePhase } from "./types/Types";
 
 const app = express();
 const httpServer = createServer(app);
@@ -29,6 +29,14 @@ type PlayerAccount = {
 
 const playerAccounts = new Map<string, PlayerAccount>();
 
+// TODO: Später durch dauerhaft gespeicherte Rate-Limits ersetzen.
+const loginAttempts = new Map<
+  string,
+  { count: number; resetAt: number }
+>();
+
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
 // TODO: Später durch die richtige Werwolf-Spielsteuerung ersetzen.
 const currentPhase: GamePhase = "lobby";
@@ -62,12 +70,6 @@ io.on("connection", (socket) => {
 
   socket.on("admin:login", (password: unknown) => {
     const adminPassword = process.env.ADMIN_PASSWORD;
-    console.log(
-      "ADMIN_PASSWORD vorhanden:",
-      Boolean(adminPassword),
-      "Mindestlänge erfüllt:",
-      (adminPassword?.length ?? 0) >= 16
-    );
 
     // Ohne gültige Konfiguration keinen Adminzugang erlauben.
     if (!adminPassword || adminPassword.length < 16) {
@@ -366,15 +368,7 @@ io.on("connection", (socket) => {
 const PORT = Number(process.env.PORT) || 3000;
 
 httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log(`Werwolf Engine Server läuft auf Port ${PORT}`);
-
-  const adminPassword = process.env.ADMIN_PASSWORD;
-
-  console.log("=== ADMIN KONFIGURATION ===");
-  console.log("Passwort vorhanden:", Boolean(adminPassword));
   console.log(
-    "Mindestens 16 Zeichen:",
-    (adminPassword?.length ?? 0) >= 16
+    `Werwolf Engine Server läuft auf Port ${PORT}`
   );
-  console.log("===========================");
 });
