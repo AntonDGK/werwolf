@@ -1,3 +1,4 @@
+
 import express from "express";
 import { createHash, timingSafeEqual } from "crypto";
 import { createServer } from "http";
@@ -11,17 +12,19 @@ const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL?.trim() || "http://localhost:5173",
+    origin:
+      process.env.CLIENT_URL?.trim() ||
+      "http://localhost:5173",
     methods: ["GET", "POST"],
   },
 });
 
 const players: Player[] = [];
 
-// TODO: Später durch eine richtige Spielsteuerung ersetzen.
+// TODO: Später durch die richtige Werwolf-Spielsteuerung ersetzen.
 const currentPhase: GamePhase = "lobby";
 
-// Öffentliche Spielerliste: geheime Werwolf-Rollen werden NICHT gesendet.
+// Öffentliche Spielerliste ohne geheime Werwolf-Rollen.
 function broadcastPlayers(): void {
   const publicPlayers = players.map((player) => ({
     id: player.id,
@@ -40,30 +43,36 @@ app.get("/", (_req, res) => {
 io.on("connection", (socket) => {
   console.log("Client verbunden:", socket.id);
 
-  // TODO: Test-Beitritt durch Passwort, Einladungscode und
-  // ausdrückliche Freigabe des Gamemasters ersetzen.
-  // ACHTUNG: Aktuell ist die Lobby NICHT zugangsgeschützt.
+  // =====================================================
   // GAMEMASTER-LOGIN
-// TODO: Später zusätzliche IP-basierte Rate-Limits ergänzen.
+  // =====================================================
 
+  // TODO: Später zusätzlich IP-basierte Rate-Limits,
+  // dauerhafte Sitzungen und sichere Account-Verwaltung.
   let failedAdminAttempts = 0;
 
   socket.on("admin:login", (password: unknown) => {
     const adminPassword = process.env.ADMIN_PASSWORD;
 
-    // Ohne konfiguriertes Passwort gibt es keinen Adminzugang.
+    // Ohne gültige Konfiguration keinen Adminzugang erlauben.
     if (!adminPassword || adminPassword.length < 16) {
-      socket.emit("auth:error", "Adminzugang nicht konfiguriert.");
+      socket.emit(
+        "auth:error",
+        "Adminzugang nicht konfiguriert."
+      );
       return;
     }
 
-    // Einfache Begrenzung pro Socket-Verbindung.
+    // Vorläufige Begrenzung pro Socket-Verbindung.
     if (failedAdminAttempts >= 5) {
       socket.emit("auth:error", "Zu viele Fehlversuche.");
       return;
     }
 
-    if (typeof password !== "string" || password.length > 256) {
+    if (
+      typeof password !== "string" ||
+      password.length > 256
+    ) {
       failedAdminAttempts++;
       socket.emit("auth:error", "Anmeldung fehlgeschlagen.");
       return;
@@ -83,15 +92,22 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Keine zweite Identität über denselben Socket.
+    // Ein Socket darf nur eine Identität besitzen.
     if (players.some((player) => player.id === socket.id)) {
       socket.emit("auth:error", "Bereits angemeldet.");
       return;
     }
 
     // Vorerst nur ein aktiver Gamemaster.
-    if (players.some((player) => player.userRole === "gamemaster")) {
-      socket.emit("auth:error", "Gamemaster bereits angemeldet.");
+    if (
+      players.some(
+        (player) => player.userRole === "gamemaster"
+      )
+    ) {
+      socket.emit(
+        "auth:error",
+        "Gamemaster bereits angemeldet."
+      );
       return;
     }
 
@@ -113,6 +129,17 @@ io.on("connection", (socket) => {
 
     console.log("Gamemaster erfolgreich angemeldet.");
   });
+
+  // =====================================================
+  // SPIELER-BEITRITT
+  // =====================================================
+
+  // TODO: Hier individuelle Spielerpasswörter einbauen.
+  // TODO: Spieler zunächst in einen Warteraum schicken.
+  // TODO: Beitritt erst nach Gamemaster-Freigabe erlauben.
+  //
+  // ACHTUNG: Der Spielerbeitritt ist aktuell noch offen!
+
   socket.on("join", (input: unknown) => {
     if (typeof input !== "string") return;
 
@@ -120,9 +147,16 @@ io.on("connection", (socket) => {
     if (!name) return;
 
     // Pro Socket nur ein Spieler.
-    if (players.some((player) => player.id === socket.id)) return;
+    if (
+      players.some(
+        (player) => player.id === socket.id
+      )
+    ) {
+      return;
+    }
 
-
+    // Normale Spieler erhalten niemals automatisch
+    // Gamemaster-Rechte.
     const userRole: UserRole = "player";
 
     const newPlayer: Player = {
@@ -136,16 +170,27 @@ io.on("connection", (socket) => {
 
     players.push(newPlayer);
 
-    socket.emit(userRole === "gamemaster" ? "joinedAdmin" : "joined");
+    // KORRIGIERT:
+    // Normale Spieler bekommen immer das Event "joined".
+    socket.emit("joined");
+
     socket.emit("phaseChanged", currentPhase);
+
     broadcastPlayers();
 
     console.log(`${name} ist beigetreten (${userRole}).`);
   });
 
-  // Nur WebRTC-Verbindungsinformationen vermitteln.
-  // Kameravideos werden NICHT über Socket.IO übertragen.
-  // Der Client verlangt vor einer Übertragung eine eigene Bestätigung.
+  // =====================================================
+  // WEBRTC-SIGNALISIERUNG
+  // =====================================================
+
+  // Nur Verbindungsinformationen werden weitergeleitet.
+  // Die Kamerabilder werden NICHT über Socket.IO übertragen.
+  //
+  // TODO: Später nur freigegebene Teilnehmer zulassen.
+  // TODO: WebRTC-Zugriff an sichere Sitzungen koppeln.
+
   socket.on("webrtc:signal", (data: unknown) => {
     if (!data || typeof data !== "object") return;
 
@@ -154,13 +199,30 @@ io.on("connection", (socket) => {
       signal?: unknown;
     };
 
-    if (typeof targetId !== "string" || targetId === socket.id) return;
-    if (!signal || typeof signal !== "object") return;
+    if (
+      typeof targetId !== "string" ||
+      targetId === socket.id
+    ) {
+      return;
+    }
 
-    // Nur Spieler, die der Test-Lobby beigetreten sind.
-    const senderExists = players.some((player) => player.id === socket.id);
-    const receiverExists = players.some((player) => player.id === targetId);
-    if (!senderExists || !receiverExists) return;
+    if (!signal || typeof signal !== "object") {
+      return;
+    }
+
+    // Sender und Empfänger müssen aktuell in
+    // der Test-Lobby angemeldet sein.
+    const senderExists = players.some(
+      (player) => player.id === socket.id
+    );
+
+    const receiverExists = players.some(
+      (player) => player.id === targetId
+    );
+
+    if (!senderExists || !receiverExists) {
+      return;
+    }
 
     const { type, sessionId } = signal as {
       type?: unknown;
@@ -183,18 +245,40 @@ io.on("connection", (socket) => {
     });
   });
 
+  // =====================================================
+  // VERBINDUNG TRENNEN
+  // =====================================================
+
   socket.on("disconnect", () => {
-    const index = players.findIndex((player) => player.id === socket.id);
+    const index = players.findIndex(
+      (player) => player.id === socket.id
+    );
+
     if (index === -1) return;
 
     const [leavingPlayer] = players.splice(index, 1);
-    console.log("Client getrennt:", leavingPlayer.name);
+
+    console.log(
+      "Client getrennt:",
+      leavingPlayer.name
+    );
+
+    // Wichtig:
+    // Niemand erhält beim Verlassen des Gamemasters
+    // automatisch dessen Adminrechte.
 
     broadcastPlayers();
   });
 });
 
+// =====================================================
+// SERVER STARTEN
+// =====================================================
+
 const PORT = Number(process.env.PORT) || 3000;
+
 httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log(`Werwolf Engine Server läuft auf Port ${PORT}`);
+  console.log(
+    `Werwolf Engine Server läuft auf Port ${PORT}`
+  );
 });
