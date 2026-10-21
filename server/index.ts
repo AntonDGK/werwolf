@@ -1,4 +1,5 @@
 import express from "express";
+import { createHash, timingSafeEqual } from "crypto";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -42,6 +43,76 @@ io.on("connection", (socket) => {
   // TODO: Test-Beitritt durch Passwort, Einladungscode und
   // ausdrückliche Freigabe des Gamemasters ersetzen.
   // ACHTUNG: Aktuell ist die Lobby NICHT zugangsgeschützt.
+  // GAMEMASTER-LOGIN
+// TODO: Später zusätzliche IP-basierte Rate-Limits ergänzen.
+
+  let failedAdminAttempts = 0;
+
+  socket.on("admin:login", (password: unknown) => {
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    // Ohne konfiguriertes Passwort gibt es keinen Adminzugang.
+    if (!adminPassword || adminPassword.length < 16) {
+      socket.emit("auth:error", "Adminzugang nicht konfiguriert.");
+      return;
+    }
+
+    // Einfache Begrenzung pro Socket-Verbindung.
+    if (failedAdminAttempts >= 5) {
+      socket.emit("auth:error", "Zu viele Fehlversuche.");
+      return;
+    }
+
+    if (typeof password !== "string" || password.length > 256) {
+      failedAdminAttempts++;
+      socket.emit("auth:error", "Anmeldung fehlgeschlagen.");
+      return;
+    }
+
+    const expected = createHash("sha256")
+      .update(adminPassword)
+      .digest();
+
+    const received = createHash("sha256")
+      .update(password)
+      .digest();
+
+    if (!timingSafeEqual(expected, received)) {
+      failedAdminAttempts++;
+      socket.emit("auth:error", "Anmeldung fehlgeschlagen.");
+      return;
+    }
+
+    // Keine zweite Identität über denselben Socket.
+    if (players.some((player) => player.id === socket.id)) {
+      socket.emit("auth:error", "Bereits angemeldet.");
+      return;
+    }
+
+    // Vorerst nur ein aktiver Gamemaster.
+    if (players.some((player) => player.userRole === "gamemaster")) {
+      socket.emit("auth:error", "Gamemaster bereits angemeldet.");
+      return;
+    }
+
+    const admin: Player = {
+      id: socket.id,
+      name: "Gamemaster",
+      userRole: "gamemaster",
+      gameRole: null,
+      isAlive: true,
+      color: null,
+    };
+
+    players.push(admin);
+
+    socket.emit("joinedAdmin");
+    socket.emit("phaseChanged", currentPhase);
+
+    broadcastPlayers();
+
+    console.log("Gamemaster erfolgreich angemeldet.");
+  });
   socket.on("join", (input: unknown) => {
     if (typeof input !== "string") return;
 
@@ -51,10 +122,8 @@ io.on("connection", (socket) => {
     // Pro Socket nur ein Spieler.
     if (players.some((player) => player.id === socket.id)) return;
 
-    // TODO: Sichere Rollenvergabe nach Login implementieren.
-    // NUR TEST: Der erste Spieler wird Gamemaster.
-    const userRole: UserRole =
-      players.length === 0 ? "gamemaster" : "player";
+
+    const userRole: UserRole = "player";
 
     const newPlayer: Player = {
       id: socket.id,
@@ -120,13 +189,6 @@ io.on("connection", (socket) => {
 
     const [leavingPlayer] = players.splice(index, 1);
     console.log("Client getrennt:", leavingPlayer.name);
-
-    // NUR TEST: Fällt der Gamemaster weg, übernimmt der erste
-    // verbleibende Spieler. Später durch sichere GM-Anmeldung ersetzen.
-    if (leavingPlayer.userRole === "gamemaster" && players.length > 0) {
-      players[0].userRole = "gamemaster";
-      io.to(players[0].id).emit("joinedAdmin");
-    }
 
     broadcastPlayers();
   });
