@@ -4,7 +4,6 @@ import "./App.css";
 import CameraPreview from "./components/CameraPreview";
 import LoginScreen from "./components/LoginScreen";
 import AccountManager from "./components/AccountManager";
-
 import { socket } from "./socket";
 
 type UserRole = "gamemaster" | "storyteller" | "player";
@@ -46,6 +45,7 @@ export default function App() {
       setConnected(false);
       setScreen("start");
       setPlayers([]);
+      setUserRole("player");
       setLoginError("");
     };
 
@@ -62,16 +62,22 @@ export default function App() {
       setScreen("lobby");
     };
 
-    const handleAuthError = (message: string) => {
-      setLoginError(message);
+    const handleAuthError = (message: unknown) => {
+      setLoginError(
+        typeof message === "string" ? message : "Anmeldung fehlgeschlagen."
+      );
     };
 
     const handlePhaseChanged = (phase: unknown) => {
-      if (isGamePhase(phase)) setScreen(phase);
+      if (isGamePhase(phase)) {
+        setScreen(phase);
+      }
     };
 
     const handlePlayers = (list: PublicPlayer[]) => {
-      if (Array.isArray(list)) setPlayers(list);
+      if (Array.isArray(list)) {
+        setPlayers(list);
+      }
     };
 
     socket.on("connect", handleConnect);
@@ -104,7 +110,6 @@ export default function App() {
           onPlayerJoin={(playerName, playerPassword) => {
             setLoginError("");
             setName(playerName);
-
             socket.emit("player:login", {
               name: playerName,
               password: playerPassword,
@@ -130,14 +135,15 @@ export default function App() {
             ))}
           </ul>
 
-          {/* Nur Gamemaster sehen die Kontoverwaltung. */}
-          {userRole === "gamemaster" && (<AccountManager /> )}
-          {/* TODO: Individuelle Spielerpasswörter und Freigabe */}
-          {/* TODO: Erzählersteuerung und Werwolf-Spielphasen */}
+          {/* Kontoerstellung, Passwort-Reset, Kick und Löschen im Admin-Bereich. */}
+          {userRole === "gamemaster" && <AccountManager />}
+
+          {/* TODO: Erzähler ernennen und Werwolf-Spielphasen steuern. */}
+          {/* TODO: GM-Freigabe-Warteraum statt direktem Spielerbeitritt. */}
         </section>
       )}
 
-      {/* Kamera bleibt in allen Phasen eingebunden. */}
+      {/* Kamera bleibt unabhängig vom Login eingebunden. */}
       <CameraPreview />
     </main>
   );

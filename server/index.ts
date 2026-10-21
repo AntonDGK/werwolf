@@ -16,8 +16,8 @@ const io = new Server(httpServer, {
   },
 });
 
-// Vorläufige Speicherung im Arbeitsspeicher.
-// TODO: Konten, Sperrungen und Spielzustand dauerhaft speichern.
+// TODO: Vor dem öffentlichen Betrieb Konten, Sperren und Spielzustand
+// dauerhaft speichern. Diese Daten gehen bei einem Neustart verloren.
 const players: Player[] = [];
 
 type PlayerAccount = {
@@ -26,21 +26,54 @@ type PlayerAccount = {
   salt: string;
 };
 
-const playerAccounts = new Map<string, PlayerAccount>();
+type PublicAccount = {
+  name: string;
+  online: boolean;
+};
 
-const loginAttempts = new Map<
-  string,
-  { count: number; resetAt: number }
->();
+const playerAccounts = new Map<string, PlayerAccount>();
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-
-// TODO: Später durch die richtige Werwolf-Spielsteuerung ersetzen.
 const currentPhase: GamePhase = "lobby";
 
+function accountKey(name: string): string {
+  return name.trim().toLocaleLowerCase("de-DE");
+}
+
+function isAdmin(socketId: string): boolean {
+  return players.some(
+    (player) => player.id === socketId && player.userRole === "gamemaster"
+  );
+}
+
+function findOnlineAccount(name: string): Player | undefined {
+  const key = accountKey(name);
+  return players.find(
+    (player) =>
+      player.userRole === "player" && accountKey(player.name) === key
+  );
+}
+
+function broadcastAccountList(): void {
+  const accounts: PublicAccount[] = Array.from(playerAccounts.values())
+    .map((account) => ({
+      name: account.name,
+      online: Boolean(findOnlineAccount(account.name)),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "de"));
+
+  // Die Kontoliste darf nur der eingeloggte Gamemaster erhalten.
+  for (const player of players) {
+    if (player.userRole === "gamemaster") {
+      io.to(player.id).emit("account:list", accounts);
+    }
+  }
+}
+
 function broadcastPlayers(): void {
-  // Geheime Rollen oder Passwörter niemals öffentlich senden.
+  // Keine geheimen Werwolf-Rollen, Kamera-IDs oder Passwörter senden.
   const publicPlayers = players.map((player) => ({
     id: player.id,
     name: player.name,
@@ -48,7 +81,48 @@ function broadcastPlayers(): void {
     color: player.color,
   }));
 
-  io.emit("players", publicPlayers);
+  // Auch die öffentliche Spielerliste nur angemeldeten Teilnehmern senden.
+  for (const player of players) {
+    io.to(player.id).emit("players", publicPlayers);
+  }
+
+  broadcastAccountList();
+}
+
+function disconnectPlayerAccount(name: string, reason: string): boolean {
+  const player = findOnlineAccount(name);
+  if (!player) return false;
+
+  const activeSocket = io.sockets.sockets.get(player.id);
+  if (activeSocket) {
+    activeSocket.emit("auth:kicked", reason);
+    activeSocket.disconnect(true);
+  } else {
+    // Falls die Verbindung gerade verschwunden ist: veralteten Eintrag löschen.
+    const index = players.findIndex((entry) => entry.id === player.id);
+    if (index !== -1) {
+      players.splice(index, 1);
+      broadcastPlayers();
+    }
+  }
+
+  return true;
+}
+
+function getAccount(input: unknown): PlayerAccount | undefined {
+  if (typeof input !== "string" || input.length > 50) return undefined;
+  return playerAccounts.get(accountKey(input));
+}
+
+function makePasswordCredentials(): {
+  password: string;
+  salt: string;
+  passwordHash: string;
+} {
+  const password = randomBytes(18).toString("base64url");
+  const salt = randomBytes(16).toString("hex");
+  const passwordHash = scryptSync(password, salt, 64).toString("hex");
+  return { password, salt, passwordHash };
 }
 
 app.get("/", (_req, res) => {
@@ -61,9 +135,8 @@ io.on("connection", (socket) => {
   // =====================================================
   // GAMEMASTER-LOGIN
   // =====================================================
-
-  // TODO: Zusätzlich ein übergreifendes Rate-Limit (IP/Account)
-  // implementieren. Dieses Limit gilt nur pro Verbindung.
+  // TODO: Zusätzlich ein übergreifendes Rate-Limit implementieren.
+  // Diese Begrenzung gilt bisher nur pro Socket-Verbindung.
   let failedAdminAttempts = 0;
 
   socket.on("admin:login", (password: unknown) => {
@@ -121,16 +194,19 @@ io.on("connection", (socket) => {
   });
 
   // =====================================================
-  // SPIELERKONTEN ERSTELLEN – NUR GAMEMASTER
+  // GAMEMASTER – SPIELERKONTEN VERWALTEN
   // =====================================================
 
-  socket.on("account:create", (input: unknown) => {
-    const admin = players.find(
-      (player) =>
-        player.id === socket.id && player.userRole === "gamemaster"
-    );
+  socket.on("account:list:request", () => {
+    if (!isAdmin(socket.id)) {
+      socket.emit("account:error", "Keine Berechtigung.");
+      return;
+    }
+    broadcastAccountList();
+  });
 
-    if (!admin) {
+  socket.on("account:create", (input: unknown) => {
+    if (!isAdmin(socket.id)) {
       socket.emit("account:error", "Keine Berechtigung.");
       return;
     }
@@ -141,47 +217,104 @@ io.on("connection", (socket) => {
     }
 
     const name = input.trim();
-    const accountKey = name.toLocaleLowerCase("de-DE");
+    const key = accountKey(name);
 
     if (
       name.length < 2 ||
       name.length > 30 ||
       /[\x00-\x1F\x7F]/.test(name) ||
-      accountKey === "gamemaster"
+      key === "gamemaster"
     ) {
       socket.emit("account:error", "Ungültiger Name.");
       return;
     }
 
-    if (playerAccounts.has(accountKey)) {
-      socket.emit(
-        "account:error",
-        "Für diesen Namen existiert bereits ein Zugang."
-      );
+    if (playerAccounts.has(key)) {
+      socket.emit("account:error", "Für diesen Namen existiert bereits ein Zugang.");
       return;
     }
 
-    const password = randomBytes(18).toString("base64url");
-    const salt = randomBytes(16).toString("hex");
-    const passwordHash = scryptSync(password, salt, 64).toString("hex");
+    const { password, passwordHash, salt } = makePasswordCredentials();
+    playerAccounts.set(key, { name, passwordHash, salt });
 
-    playerAccounts.set(accountKey, {
-      name,
-      passwordHash,
-      salt,
-    });
-
-    // Das Passwort wird ausschließlich an den angemeldeten
-    // Gamemaster-Socket geschickt, niemals an alle Spieler.
+    // Klartextpasswort nur einmal an diesen Gamemaster senden.
     socket.emit("account:created", { name, password });
+    broadcastAccountList();
     console.log(`Spielerkonto erstellt: ${name}`);
+  });
+
+  socket.on("account:reset", (input: unknown) => {
+    if (!isAdmin(socket.id)) {
+      socket.emit("account:error", "Keine Berechtigung.");
+      return;
+    }
+
+    const account = getAccount(input);
+    if (!account) {
+      socket.emit("account:error", "Konto nicht gefunden.");
+      return;
+    }
+
+    const { password, passwordHash, salt } = makePasswordCredentials();
+    account.passwordHash = passwordHash;
+    account.salt = salt;
+    loginAttempts.delete(accountKey(account.name));
+
+    // Bereits angemeldete Sitzung ungültig machen.
+    disconnectPlayerAccount(account.name, "Dein Passwort wurde zurückgesetzt.");
+
+    socket.emit("account:reset:done", { name: account.name, password });
+    broadcastAccountList();
+    console.log(`Passwort zurückgesetzt: ${account.name}`);
+  });
+
+  socket.on("account:kick", (input: unknown) => {
+    if (!isAdmin(socket.id)) {
+      socket.emit("account:error", "Keine Berechtigung.");
+      return;
+    }
+
+    const account = getAccount(input);
+    if (!account) {
+      socket.emit("account:error", "Konto nicht gefunden.");
+      return;
+    }
+
+    if (!disconnectPlayerAccount(account.name, "Du wurdest vom Gamemaster entfernt.")) {
+      socket.emit("account:error", "Spieler ist nicht online.");
+      return;
+    }
+
+    socket.emit("account:kicked", account.name);
+    broadcastAccountList();
+  });
+
+  socket.on("account:delete", (input: unknown) => {
+    if (!isAdmin(socket.id)) {
+      socket.emit("account:error", "Keine Berechtigung.");
+      return;
+    }
+
+    const account = getAccount(input);
+    if (!account) {
+      socket.emit("account:error", "Konto nicht gefunden.");
+      return;
+    }
+
+    const key = accountKey(account.name);
+    playerAccounts.delete(key);
+    loginAttempts.delete(key);
+    disconnectPlayerAccount(account.name, "Dein Zugang wurde gelöscht.");
+
+    socket.emit("account:deleted", account.name);
+    broadcastAccountList();
+    console.log(`Spielerkonto gelöscht: ${account.name}`);
   });
 
   // =====================================================
   // SPIELER-LOGIN MIT PERSÖNLICHEM PASSWORT
   // =====================================================
-
-  // Wichtig: Der alte passwortlose "join"-Handler ist entfernt.
+  // Kein passwortloser 'join'-Handler mehr.
   socket.on("player:login", (input: unknown) => {
     if (players.some((player) => player.id === socket.id)) {
       socket.emit("auth:error", "Bereits angemeldet.");
@@ -210,60 +343,49 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const accountKey = name.trim().toLocaleLowerCase("de-DE");
+    const key = accountKey(name);
     const now = Date.now();
-    const previousAttempts = loginAttempts.get(accountKey);
+    const previousAttempts = loginAttempts.get(key);
 
     if (previousAttempts && previousAttempts.resetAt > now) {
       if (previousAttempts.count >= MAX_LOGIN_ATTEMPTS) {
-        socket.emit(
-          "auth:error",
-          "Zu viele Anmeldeversuche. Bitte später erneut versuchen."
-        );
+        socket.emit("auth:error", "Zu viele Anmeldeversuche. Bitte später erneut versuchen.");
         return;
       }
     } else {
-      loginAttempts.delete(accountKey);
+      loginAttempts.delete(key);
     }
 
-    const account = playerAccounts.get(accountKey);
+    const account = playerAccounts.get(key);
     let passwordCorrect = false;
 
     if (account) {
       const receivedHash = scryptSync(password, account.salt, 64);
       const expectedHash = Buffer.from(account.passwordHash, "hex");
-
       passwordCorrect =
         receivedHash.length === expectedHash.length &&
         timingSafeEqual(receivedHash, expectedHash);
     }
 
     if (!account || !passwordCorrect) {
-      const attempts = loginAttempts.get(accountKey);
-
-      loginAttempts.set(accountKey, {
+      const attempts = loginAttempts.get(key);
+      loginAttempts.set(key, {
         count: (attempts?.count ?? 0) + 1,
         resetAt:
           attempts && attempts.resetAt > now
             ? attempts.resetAt
             : now + LOGIN_WINDOW_MS,
       });
-
       socket.emit("auth:error", "Anmeldung fehlgeschlagen.");
       return;
     }
 
-    if (
-      players.some(
-        (player) =>
-          player.name.toLocaleLowerCase("de-DE") === accountKey
-      )
-    ) {
+    if (findOnlineAccount(account.name)) {
       socket.emit("auth:error", "Dieses Konto ist bereits angemeldet.");
       return;
     }
 
-    loginAttempts.delete(accountKey);
+    loginAttempts.delete(key);
 
     const newPlayer: Player = {
       id: socket.id,
@@ -280,17 +402,12 @@ io.on("connection", (socket) => {
     broadcastPlayers();
     console.log(`${account.name} hat sich angemeldet.`);
 
-    // TODO: Vor öffentlichem Einsatz zuerst in den
-    // GM-Freigabe-Warteraum statt direkt in die Lobby.
+    // TODO: Vor öffentlichem Einsatz den GM-Freigabe-Warteraum ergänzen.
   });
 
   // =====================================================
   // WEBRTC-SIGNALISIERUNG
   // =====================================================
-
-  // Kamerabilder werden nicht über Socket.IO übertragen.
-  // TODO: Nur durch den Gamemaster freigegebene Teilnehmer
-  // zur WebRTC-Signalisierung zulassen.
   socket.on("webrtc:signal", (data: unknown) => {
     if (!data || typeof data !== "object") return;
 
@@ -302,6 +419,7 @@ io.on("connection", (socket) => {
     if (typeof targetId !== "string" || targetId === socket.id) return;
     if (!signal || typeof signal !== "object") return;
 
+    // Bis zum Warteraum: Beide müssen zumindest eingeloggt sein.
     const senderExists = players.some((player) => player.id === socket.id);
     const receiverExists = players.some((player) => player.id === targetId);
     if (!senderExists || !receiverExists) return;
@@ -330,15 +448,13 @@ io.on("connection", (socket) => {
   // =====================================================
   // VERBINDUNG TRENNEN
   // =====================================================
-
   socket.on("disconnect", () => {
     const index = players.findIndex((player) => player.id === socket.id);
     if (index === -1) return;
 
     const [leavingPlayer] = players.splice(index, 1);
     console.log("Client getrennt:", leavingPlayer.name);
-
-    // Niemand erhält automatisch Gamemaster-Rechte.
+    // Keine automatische Gamemaster-Übergabe.
     broadcastPlayers();
   });
 });
