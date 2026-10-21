@@ -1,6 +1,6 @@
 
 import express from "express";
-import { createHash, timingSafeEqual } from "crypto";
+import {createHash, timingSafeEqual, randomBytes, scryptSync} from "crypto";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -20,6 +20,15 @@ const io = new Server(httpServer, {
 });
 
 const players: Player[] = [];
+
+type PlayerAccount = {
+  name: string;
+  passwordHash: string;
+  salt: string;
+};
+
+const playerAccounts = new Map<string, PlayerAccount>();
+
 
 // TODO: Später durch die richtige Werwolf-Spielsteuerung ersetzen.
 const currentPhase: GamePhase = "lobby";
