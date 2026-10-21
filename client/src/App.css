@@ -107,3 +107,19 @@ button:disabled {
     padding: 16px;
   }
 }
+
+.login-mode-selector {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.login-mode-selector button[aria-pressed="true"] {
+  background: #626b7c;
+  border-color: #8792a5;
+}
+
+.login-error {
+  color: #ff8f8f;
+  margin-top: 12px;
+}

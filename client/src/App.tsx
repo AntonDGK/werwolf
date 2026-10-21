@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import "./App.css";
 
 import CameraPreview from "./components/CameraPreview";
+import LoginScreen from "./components/LoginScreen";
 import { socket } from "./socket";
 
 // TODO: Die Spieltypen später in einem gemeinsamen Paket verwalten.
@@ -30,6 +31,9 @@ function isGamePhase(value: unknown): value is GamePhase {
 export default function App() {
   const [screen, setScreen] = useState<Screen>("start");
   const [name, setName] = useState("");
+  const [loginMode, setLoginMode] = useState<"player" | "gamemaster">("player");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [userRole, setUserRole] = useState<UserRole>("player");
   const [connected, setConnected] = useState(socket.connected);
   const [players, setPlayers] = useState<PublicPlayer[]>([]);
@@ -48,12 +52,19 @@ export default function App() {
 
     const handleJoined = () => {
       setUserRole("player");
+      setLoginError("");
       setScreen("lobby");
     };
 
     const handleJoinedAdmin = () => {
+      setName("Gamemaster");
       setUserRole("gamemaster");
+      setLoginError("");
       setScreen("lobby");
+    };
+
+    const handleAuthError = (message: string) => {
+      setLoginError(message);
     };
 
     const handlePhaseChanged = (phase: unknown) => {
@@ -70,6 +81,7 @@ export default function App() {
     socket.on("joinedAdmin", handleJoinedAdmin);
     socket.on("phaseChanged", handlePhaseChanged);
     socket.on("players", handlePlayers);
+    socket.on("auth:error", handleAuthError);
 
     return () => {
       socket.off("connect", handleConnect);
@@ -78,16 +90,28 @@ export default function App() {
       socket.off("joinedAdmin", handleJoinedAdmin);
       socket.off("phaseChanged", handlePhaseChanged);
       socket.off("players", handlePlayers);
+      socket.off("auth:error", handleAuthError);
     };
   }, []);
 
   const handleJoin = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const cleanName = name.trim();
-    if (!connected || !cleanName) return;
+    if (!connected) return;
 
-    // TODO: Passwort, Einladungscode und GM-Freigabe ergänzen.
-    // Benutzerrollen werden ausschließlich vom Server zugewiesen.
+    setLoginError("");
+
+    if (loginMode === "gamemaster") {
+      if (!adminPassword) return;
+
+      // Passwort wird ausschließlich vom Server überprüft.
+      socket.emit("admin:login", adminPassword);
+      return;
+    }
+
+    const cleanName = name.trim();
+    if (!cleanName) return;
+
+    // TODO: Individuelle Spielerpasswörter und GM-Freigabe.
     socket.emit("join", cleanName);
   };
 
@@ -95,33 +119,35 @@ export default function App() {
     <main className="werwolf-app">
       <h1>🐺 Werwolf Engine</h1>
 
+      {/* LOGIN */}
       {screen === "start" ? (
-        <section className="werwolf-panel">
-          <h2>Beitreten</h2>
-          <form className="join-form" onSubmit={handleJoin}>
-            <input
-              type="text"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Dein Name"
-              aria-label="Dein Name"
-              maxLength={30}
-              required
-            />
-            <button type="submit" disabled={!connected || !name.trim()}>
-              Beitreten
-            </button>
-          </form>
-          {!connected && <p>Verbindung zum Server wird hergestellt …</p>}
-          {/* TODO: Echtes Login und Zugangskontrolle einbauen. */}
-        </section>
+        <LoginScreen
+          connected={connected}
+          loginError={loginError}
+          onPlayerJoin={(playerName) => {
+            setLoginError("");
+            setName(playerName);
+            socket.emit("join", playerName);
+          }}
+          onAdminLogin={(password) => {
+            setLoginError("");
+            socket.emit("admin:login", password);
+          }}
+        />
       ) : (
+        /* LOBBY UND SPIEL */
         <section className="werwolf-panel">
-          <h2>{screen === "lobby" ? "Lobby" : `Spielphase: ${screen}`}</h2>
+          <h2>
+            {screen === "lobby"
+              ? "Lobby"
+              : `Spielphase: ${screen}`}
+          </h2>
+
           <p>Willkommen, {name}!</p>
           <p>Deine Berechtigung: {userRole}</p>
 
           <h3>Spieler ({players.length})</h3>
+
           <ul>
             {players.map((player) => (
               <li key={player.id}>
@@ -130,12 +156,14 @@ export default function App() {
             ))}
           </ul>
 
-          {/* TODO: Gamemaster-, Erzähler- und Spieleroberflächen. */}
-          {/* TODO: Werwolf-Rollen und Phasensteuerung. */}
+          {/* TODO: Gamemaster-Dashboard */}
+          {/* TODO: Erzähler-Dashboard */}
+          {/* TODO: Spieler-Dashboard */}
+          {/* TODO: Werwolf-Spielphasen */}
         </section>
       )}
 
-      {/* Bleibt in allen Phasen eingebunden, damit WebRTC weiterläuft. */}
+      {/* Kamera bleibt immer eingebunden. */}
       <CameraPreview />
     </main>
   );
