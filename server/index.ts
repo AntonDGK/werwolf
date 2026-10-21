@@ -62,6 +62,13 @@ io.on("connection", (socket) => {
 
   socket.on("admin:login", (password: unknown) => {
     const adminPassword = process.env.ADMIN_PASSWORD;
+    console.log(adminPassword);
+    console.log(
+      "ADMIN_PASSWORD vorhanden:",
+      Boolean(adminPassword),
+      "Mindestlänge erfüllt:",
+      (adminPassword?.length ?? 0) >= 16
+    );
 
     // Ohne gültige Konfiguration keinen Adminzugang erlauben.
     if (!adminPassword || adminPassword.length < 16) {
@@ -148,6 +155,79 @@ io.on("connection", (socket) => {
   // TODO: Beitritt erst nach Gamemaster-Freigabe erlauben.
   //
   // ACHTUNG: Der Spielerbeitritt ist aktuell noch offen!
+
+  
+  // =====================================================
+  // SPIELERKONTEN ERSTELLEN – NUR GAMEMASTER
+  // =====================================================
+
+  socket.on("account:create", (input: unknown) => {
+    // Nur ein angemeldeter Gamemaster darf Konten erstellen.
+    const admin = players.find(
+      (player) =>
+        player.id === socket.id &&
+        player.userRole === "gamemaster"
+    );
+
+    if (!admin) {
+      socket.emit("account:error", "Keine Berechtigung.");
+      return;
+    }
+
+    if (typeof input !== "string") {
+      socket.emit("account:error", "Ungültiger Name.");
+      return;
+    }
+
+    const name = input.trim();
+    const accountKey = name.toLocaleLowerCase("de-DE");
+
+    if (
+      name.length < 2 ||
+      name.length > 30 ||
+      /[\x00-\x1F\x7F]/.test(name) ||
+      accountKey === "gamemaster"
+    ) {
+      socket.emit("account:error", "Ungültiger Name.");
+      return;
+    }
+
+    if (playerAccounts.has(accountKey)) {
+      socket.emit(
+        "account:error",
+        "Für diesen Namen existiert bereits ein Zugang."
+      );
+      return;
+    }
+
+    // Ein eigenes, zufälliges Passwort für jeden Spieler.
+    const password = randomBytes(18).toString("base64url");
+
+    // Nicht das Passwort, sondern nur den Hash speichern.
+    const salt = randomBytes(16).toString("hex");
+
+    const passwordHash = scryptSync(
+      password,
+      salt,
+      64
+    ).toString("hex");
+
+    playerAccounts.set(accountKey, {
+      name,
+      passwordHash,
+      salt,
+    });
+
+    // Das Passwort nur an die Gamemaster-Verbindung senden.
+    // Es wird später im Dashboard einmalig angezeigt.
+    socket.emit("account:created", {
+      name,
+      password,
+    });
+
+    console.log(`Spielerkonto erstellt: ${name}`);
+  });
+
 
   socket.on("join", (input: unknown) => {
     if (typeof input !== "string") return;
