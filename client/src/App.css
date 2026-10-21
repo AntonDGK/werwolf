@@ -123,3 +123,37 @@ button:disabled {
   color: #ff8f8f;
   margin-top: 12px;
 }
+
+.account-manager {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #454a55;
+  border-radius: 12px;
+  background: #1c1f25;
+}
+
+.account-result {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 10px;
+  background: #2d313a;
+}
+
+.account-result input {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+}
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.account-manager small {
+  display: block;
+  margin-top: 20px;
+  color: #adb2bd;
+}

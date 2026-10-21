@@ -3,6 +3,8 @@ import "./App.css";
 
 import CameraPreview from "./components/CameraPreview";
 import LoginScreen from "./components/LoginScreen";
+import AccountManager from "./components/AccountManager";
+
 import { socket } from "./socket";
 
 type UserRole = "gamemaster" | "storyteller" | "player";
@@ -124,7 +126,8 @@ export default function App() {
             ))}
           </ul>
 
-          {/* TODO: Gamemaster-Dashboard und Warteraum */}
+          {/* Nur Gamemaster sehen die Kontoverwaltung. */}
+          {userRole === "gamemaster" && (<AccountManager /> )}
           {/* TODO: Individuelle Spielerpasswörter und Freigabe */}
           {/* TODO: Erzählersteuerung und Werwolf-Spielphasen */}
         </section>
