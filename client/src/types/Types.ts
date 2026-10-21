@@ -1,15 +1,15 @@
 
 /**
- * WERWOLF ENGINE – SPIELTYPEN
+ * WERWOLF ENGINE – GEMEINSAME TYPEN
  */
 
-// Berechtigung eines Benutzers auf der Webseite
+// Berechtigungen auf der Webseite
 export type UserRole =
   | "gamemaster"
   | "storyteller"
   | "player";
 
-// Die eigentlichen Werwolf-Spielrollen
+// Geheime Rollen innerhalb einer Spielrunde
 export type WerewolfRole =
   | "villager"
   | "werewolf"
@@ -19,7 +19,7 @@ export type WerewolfRole =
   | "hunter"
   | "cupid";
 
-// Hauptphasen der Werwolf-Runde
+// Hauptphasen
 export type GamePhase =
   | "lobby"
   | "preparation"
@@ -27,14 +27,14 @@ export type GamePhase =
   | "day"
   | "finished";
 
-// Schritte während des Tages
+// Tagesabschnitte
 export type DayStep =
   | "announcement"
   | "discussion"
   | "voting"
   | "resolution";
 
-// Schritte während der Nacht
+// Nachtabschnitte
 export type NightStep =
   | "werewolves"
   | "seer"
@@ -43,34 +43,16 @@ export type NightStep =
   | "cupid"
   | null;
 
-// Mögliche Nachtaktionen
+// Aktionen während der Nacht
 export type NightAction =
-  | {
-      type: "werewolf_kill";
-      targetId: string;
-    }
-  | {
-      type: "seer_inspect";
-      targetId: string;
-    }
-  | {
-      type: "healer_protect";
-      targetId: string;
-    }
-  | {
-      type: "witch_heal";
-      targetId: string;
-    }
-  | {
-      type: "witch_poison";
-      targetId: string;
-    }
-  | {
-      type: "cupid_link";
-      targetIds: [string, string];
-    };
+  | { type: "werewolf_kill"; targetId: string }
+  | { type: "seer_inspect"; targetId: string }
+  | { type: "healer_protect"; targetId: string }
+  | { type: "witch_heal"; targetId: string }
+  | { type: "witch_poison"; targetId: string }
+  | { type: "cupid_link"; targetIds: [string, string] };
 
-// Aktueller Spielzustand
+// Spielzustand
 export type GameState = {
   phase: GamePhase;
   round: number;
@@ -79,7 +61,6 @@ export type GameState = {
   gameStarted: boolean;
 };
 
-// Startzustand einer neuen Runde
 export const initialGameState: GameState = {
   phase: "lobby",
   round: 0,

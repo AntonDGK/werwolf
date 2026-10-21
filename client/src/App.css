@@ -2,6 +2,7 @@
 /* Werwolf Engine – neues Basislayout */
 
 #root {
+  background: #1e1e1e;
   width: 100%;
   min-height: 100vh;
 }
