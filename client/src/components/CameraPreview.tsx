@@ -15,7 +15,12 @@ type PendingOffer = { senderId: string; sessionId: string; sdp: RTCSessionDescri
 // Demo: genau eine Peer-Verbindung pro Browserfenster, ohne Audio.
 const iceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
 
-export default function CameraPreview() {
+type CameraPreviewProps = {
+  enabled: boolean;
+  authenticated: boolean;
+};
+
+export default function CameraPreview({ enabled, authenticated }: CameraPreviewProps) {
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState("");
   const [status, setStatus] = useState("Kamera aus. Keine Vorschau und keine Übertragung.");
@@ -27,6 +32,15 @@ export default function CameraPreview() {
   const [callStatus, setCallStatus] = useState("Keine Verbindung. Niemand sieht deine Kamera.");
   const [inCall, setInCall] = useState(false);
   const [remoteVisible, setRemoteVisible] = useState(false);
+
+  // Auch bei Login-Wechsel oder Szenenwechsel wird diese Komponente nicht unmounted.
+  const enabledRef = useRef(enabled);
+  const authenticatedRef = useRef(authenticated);
+
+  useEffect(() => {
+    enabledRef.current = enabled;
+    authenticatedRef.current = authenticated;
+  }, [enabled, authenticated]);
 
   const streamRef = useRef<MediaStream | null>(null);
   const popupRef = useRef<Window | null>(null);
@@ -135,16 +149,23 @@ export default function CameraPreview() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
     const onDeviceChange = () => { void refresh(); };
     const onConnect = () => { setMyId(socket.id ?? ""); };
     const onDisconnect = () => {
       setMyId("");
-      clearConnection(false);
-      setCallStatus("Serververbindung getrennt – Übertragung gestoppt.");
+      stop();
+      setCallStatus("Serververbindung getrennt – Kamera und Übertragung gestoppt.");
     };
     const onSignal = (data: Incoming) => {
       if (!data || typeof data.senderId !== "string" || !data.signal) return;
+      if (!enabledRef.current || !authenticatedRef.current) {
+        if (data.signal.type === "offer") {
+          sendSignal(data.senderId, { type: "stop", sessionId: data.signal.sessionId });
+        }
+        return;
+      }
       const { senderId, signal } = data;
       if (typeof signal.sessionId !== "string") return;
 
@@ -217,6 +238,15 @@ export default function CameraPreview() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Beim Wechsel zum Gamemaster alle Kamera-Tracks und Peer-Verbindungen beenden.
+  useEffect(() => {
+    if (enabled) return;
+    // Der Kamera-Stop ist eine Folge des Rollenwechsels, kein Render-Vorgang.
+    const timer = window.setTimeout(() => stop(), 0);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+
   useEffect(() => {
     if (remoteVisible && remoteVideoRef.current && remoteStreamRef.current) {
       remoteVideoRef.current.srcObject = remoteStreamRef.current;
@@ -224,7 +254,7 @@ export default function CameraPreview() {
   }, [remoteVisible]);
 
   const start = async () => {
-    if (!deviceId || loading || active) return;
+    if (!enabledRef.current || !deviceId || loading || active) return;
     const camera = cameras.find((item) => item.deviceId === deviceId);
     if (!camera?.label) {
       setStatus("Kameraname nicht erkennbar. Aus Sicherheitsgründen keine Vorschau starten.");
@@ -301,7 +331,7 @@ export default function CameraPreview() {
   const sendVideo = async () => {
     const stream = streamRef.current;
     const peerId = targetId.trim();
-    if (!socket.connected || !socket.id || !stream || !active ||
+    if (!enabledRef.current || !authenticatedRef.current || !socket.connected || !socket.id || !stream || !active ||
         !stream.getVideoTracks().some((track) => track.readyState === "live") ||
         !peerId || peerId === socket.id || sessionRef.current || pendingRef.current) return;
     if (!window.confirm(
@@ -329,6 +359,7 @@ export default function CameraPreview() {
   };
 
   const acceptOffer = async () => {
+    if (!enabledRef.current || !authenticatedRef.current) return;
     const offer = pendingRef.current;
     if (!offer || sessionRef.current) return;
     if (!window.confirm(`Videobild von ${offer.senderId} anzeigen? Die eigene Kamera wird NICHT gestartet oder gesendet.`)) return;
@@ -407,6 +438,9 @@ export default function CameraPreview() {
       <p role="status">{status}</p>
       <hr style={{ margin: "22px 0" }} />
       <h3>WebRTC-Test (ein Spieler → ein Zuschauer)</h3>
+      {!authenticated && (
+        <p>Du kannst deine Kamera bereits privat testen. Die Freigabe an andere Spieler ist erst nach dem Login möglich.</p>
+      )}
       <p><strong>Meine Socket-ID:</strong> <code style={{ wordBreak: "break-all" }}>{myId || "Nicht verbunden"}</code></p>
       <p style={{ fontSize: 13 }}>Beide Browser müssen zuerst über „Beitreten“ in die Lobby. Kopiere die Socket-ID des Zuschauers ins Senderfenster.</p>
       <label htmlFor="target-id">Socket-ID des Zuschauers</label>
@@ -414,7 +448,7 @@ export default function CameraPreview() {
         placeholder="Socket-ID aus dem anderen Fenster" style={{ display: "block", boxSizing: "border-box", width: "100%", padding: 10, margin: "8px 0" }} />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <button type="button" onClick={() => void sendVideo()}
-          disabled={!active || !myId || !targetId.trim() || inCall || !!pendingOffer}>
+          disabled={!authenticated || !active || !myId || !targetId.trim() || inCall || !!pendingOffer}>
           Kamera für diesen Zuschauer freigeben …
         </button>
         <button type="button" disabled={!inCall} onClick={() => clearConnection()}>

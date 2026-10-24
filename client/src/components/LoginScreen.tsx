@@ -2,13 +2,14 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import "./LoginScreen.css";
 
-type LoginMode = "player" | "gamemaster";
+export type LoginMode = "player" | "gamemaster";
 
 type LoginScreenProps = {
   connected: boolean;
   loginError: string;
   onPlayerJoin: (name: string, password: string) => void;
   onAdminLogin: (password: string) => void;
+  onModeChange?: (mode: LoginMode) => void;
 };
 
 export default function LoginScreen({
@@ -16,6 +17,7 @@ export default function LoginScreen({
   loginError,
   onPlayerJoin,
   onAdminLogin,
+  onModeChange,
 }: LoginScreenProps) {
   const [loginMode, setLoginMode] = useState<LoginMode>("player");
   const [name, setName] = useState("");
@@ -54,6 +56,7 @@ export default function LoginScreen({
           aria-pressed={loginMode === "player"}
           onClick={() => {
             setLoginMode("player");
+            onModeChange?.("player");
             setAdminPassword("");
           }}
         >
@@ -65,6 +68,7 @@ export default function LoginScreen({
           aria-pressed={loginMode === "gamemaster"}
           onClick={() => {
             setLoginMode("gamemaster");
+            onModeChange?.("gamemaster");
             setPlayerPassword("");
           }}
         >

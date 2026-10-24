@@ -3,6 +3,7 @@ import "./App.css";
 
 import CameraPreview from "./components/CameraPreview";
 import LoginScreen from "./components/LoginScreen";
+import type { LoginMode } from "./components/LoginScreen";
 import GameScene from "./components/GameScene";
 import AdminPanel from "./components/AdminPanel";
 import { socket } from "./socket";
@@ -27,6 +28,8 @@ function isUserRole(value: unknown): value is UserRole {
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("start");
+  const [loginMode, setLoginMode] = useState<LoginMode>("player");
+  const [cameraSettingsOpen, setCameraSettingsOpen] = useState(false);
   const [name, setName] = useState("");
   const [userRole, setUserRole] = useState<UserRole>("player");
   const [connected, setConnected] = useState(socket.connected);
@@ -42,6 +45,7 @@ export default function App() {
     const handleDisconnect = () => {
       setConnected(false);
       setScreen("start");
+      setCameraSettingsOpen(false);
       setPlayers([]);
       setUserRole("player");
       setLoginError("");
@@ -50,6 +54,7 @@ export default function App() {
     const handleJoined = () => {
       setUserRole("player");
       setLoginError("");
+      setCameraSettingsOpen(false);
       setScreen("lobby");
     };
 
@@ -57,11 +62,10 @@ export default function App() {
       setName("Gamemaster");
       setUserRole("gamemaster");
       setLoginError("");
+      setCameraSettingsOpen(false);
       setScreen("lobby");
     };
 
-    // Der Server informiert den betroffenen Spieler persönlich darüber,
-    // ob er zum Erzähler ernannt oder wieder zum Spieler gemacht wurde.
     const handleRoleChanged = (role: unknown) => {
       if (role === "player" || role === "storyteller") {
         setUserRole(role);
@@ -74,13 +78,20 @@ export default function App() {
       );
     };
 
+    const handleKicked = (message: unknown) => {
+      setLoginError(
+        typeof message === "string" ? message : "Deine Sitzung wurde beendet."
+      );
+      setScreen("start");
+      setCameraSettingsOpen(false);
+    };
+
     const handlePhaseChanged = (phase: unknown) => {
       if (isGamePhase(phase)) setScreen(phase);
     };
 
     const handlePlayers = (list: unknown) => {
       if (!Array.isArray(list)) return;
-
       const validPlayers = list.filter(
         (player): player is PublicPlayer =>
           player !== null &&
@@ -99,6 +110,7 @@ export default function App() {
     socket.on("joinedAdmin", handleJoinedAdmin);
     socket.on("role:changed", handleRoleChanged);
     socket.on("auth:error", handleAuthError);
+    socket.on("auth:kicked", handleKicked);
     socket.on("phaseChanged", handlePhaseChanged);
     socket.on("players", handlePlayers);
 
@@ -109,19 +121,29 @@ export default function App() {
       socket.off("joinedAdmin", handleJoinedAdmin);
       socket.off("role:changed", handleRoleChanged);
       socket.off("auth:error", handleAuthError);
+      socket.off("auth:kicked", handleKicked);
       socket.off("phaseChanged", handlePhaseChanged);
       socket.off("players", handlePlayers);
     };
   }, []);
 
+  // Kamera niemals automatisch starten. "enabled" schützt insbesondere den Gamemaster.
+  const cameraAllowed = screen === "start"
+    ? loginMode === "player"
+    : userRole !== "gamemaster";
+  const cameraVisible = screen === "start"
+    ? loginMode === "player"
+    : userRole !== "gamemaster" && cameraSettingsOpen;
+
   return (
-    <main className="werwolf-app">
-      {screen === "start" && <h1>Werwolf Engine</h1>}
+    <main className={`werwolf-app${screen === "start" ? " werwolf-app--login" : ""}`}>
+      {screen === "start" && <h1>🐺 Werwolf Engine</h1>}
 
       {screen === "start" ? (
         <LoginScreen
           connected={connected}
           loginError={loginError}
+          onModeChange={setLoginMode}
           onPlayerJoin={(playerName, playerPassword) => {
             setLoginError("");
             setName(playerName);
@@ -142,17 +164,33 @@ export default function App() {
             name={name}
             userRole={userRole}
             players={players}
+            onOpenCamera={
+              userRole !== "gamemaster"
+                ? () => setCameraSettingsOpen(true)
+                : undefined
+            }
           />
-
-          {userRole === "gamemaster" && (
-            <AdminPanel players={players} />
-          )}
+          {userRole === "gamemaster" && <AdminPanel players={players} />}
         </>
       )}
 
-
-      {/* Bestehende Kamerafunktion bleibt unverändert eingebunden. */}
-      <CameraPreview />
+      {/* Bleibt IMMER gemountet: laufende Kamera/Peer-Verbindung bleibt beim Login erhalten. */}
+      <div
+        className={screen === "start" ? "camera-settings camera-settings--login" : "camera-settings camera-settings--dialog"}
+        style={{ display: cameraVisible ? undefined : "none" }}
+      >
+        {screen !== "start" && (
+          <button
+            className="camera-settings__close"
+            type="button"
+            onClick={() => setCameraSettingsOpen(false)}
+            aria-label="Kameraeinstellungen schließen"
+          >
+            ✕ Schließen
+          </button>
+        )}
+        <CameraPreview enabled={cameraAllowed} authenticated={screen !== "start"} />
+      </div>
     </main>
   );
 }

@@ -7,6 +7,7 @@ type GameSceneProps = {
   name: string;
   userRole: UserRole;
   players: PublicPlayer[];
+  onOpenCamera?: () => void;
 };
 
 const phaseLabels: Record<GamePhase, string> = {
@@ -22,11 +23,12 @@ export default function GameScene({
   name,
   userRole,
   players,
+  onOpenCamera,
 }: GameSceneProps) {
   return (
     <section className="game-scene" data-phase={phase}>
       <header className="game-scene__header">
-        <h1>🐺🐺🐺🐺🐺</h1>
+        <h1>🐺 Werwolf Engine</h1>
         <span>{phaseLabels[phase]}</span>
       </header>
 
@@ -52,6 +54,11 @@ export default function GameScene({
       <footer className="game-scene__footer">
         <span>{name}</span>
         <span>{userRole}</span>
+        {userRole !== "gamemaster" && onOpenCamera && (
+          <button type="button" onClick={onOpenCamera} aria-label="Kameraeinstellungen öffnen">
+            ⚙️ Kamera
+          </button>
+        )}
       </footer>
     </section>
   );

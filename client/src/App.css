@@ -1,17 +1,16 @@
-/* Allgemeines App-Layout; komponentenspezifische Regeln liegen daneben. */
+/* Allgemeines App-Layout; Komponenten-Stile liegen in eigenen Dateien. */
 .werwolf-app {
   width: 100%;
   min-height: 100vh;
 }
 
-.werwolf-app h1 {
+.werwolf-app > h1 {
   text-align: center;
-  margin: 20px 0 32px;
+  margin: 20px 12px 32px;
 }
 
 .werwolf-panel {
-  width: 100%;
-  max-width: 960px;
+  width: min(960px, calc(100% - 24px));
   margin: 0 auto 24px;
   padding: 24px;
   background: #23262d;
@@ -19,12 +18,28 @@
   border-radius: 16px;
 }
 
-@media (max-width: 600px) {
-  .werwolf-app {
-    padding: 12px;
-  }
+.camera-settings--login {
+  width: min(960px, calc(100% - 24px));
+  margin: 0 auto 28px;
+}
 
-  .werwolf-panel {
-    padding: 16px;
-  }
+/* Das Kamera-Menü wird über der Szene geöffnet und NICHT darunter angehängt. */
+.camera-settings--dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  overflow: auto;
+  padding: 48px 12px 24px;
+  background: rgba(8, 12, 22, 0.94);
+}
+
+.camera-settings__close {
+  display: block;
+  margin: 0 auto 12px;
+  max-width: 960px;
+}
+
+@media (max-width: 600px) {
+  .werwolf-panel { padding: 16px; }
+  .camera-settings--dialog { padding: 24px 8px; }
 }
