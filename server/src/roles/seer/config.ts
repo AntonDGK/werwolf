@@ -12,5 +12,25 @@ export const seerConfig = {
     frequency: "every-night",
     phaseGroup: "seer",
   },
-  day: { enabled: false, separatePhase: false },
+  day: {
+    enabled: false,
+    separatePhase: false,
+  },
+
+  // Später: Seher während seiner Nachtphase hervorheben
+  cameraLayout: {
+    night: {
+      active: {
+        enabled: true,
+        target: "same-role",
+        layout: "dynamic",
+        area: {
+          x: 30,
+          y: 25,
+          width: 40,
+          height: 50,
+        },
+      },
+    },
+  },
 } satisfies RoleDefinition;

@@ -12,5 +12,25 @@ export const werewolfConfig = {
     frequency: "every-night",
     phaseGroup: "werewolves",
   },
-  day: { enabled: false, separatePhase: false },
+  day: {
+    enabled: false,
+    separatePhase: false,
+  },
+
+  // Später: Alle lebenden Werwölfe gemeinsam anordnen
+  cameraLayout: {
+    night: {
+      active: {
+        enabled: true,
+        target: "same-role",
+        layout: "dynamic",
+        area: {
+          x: 15,
+          y: 25,
+          width: 70,
+          height: 50,
+        },
+      },
+    },
+  },
 } satisfies RoleDefinition;

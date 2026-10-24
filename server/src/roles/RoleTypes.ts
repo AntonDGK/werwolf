@@ -13,7 +13,24 @@ export type RoleTiming = {
   phaseGroup?: string;
 };
 
+export type RoleCameraLayout = {
+  night?: {
+    active?: {
+      enabled: boolean;
+      target: "same-role";
+      layout: "dynamic";
+      area: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      };
+    };
+  };
+};
+
 export type RoleDefinition = {
+  cameraLayout?: RoleCameraLayout;
   id: RoleId;
   name: string;
   description: string;
