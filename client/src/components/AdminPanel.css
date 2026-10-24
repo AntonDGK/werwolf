@@ -1,0 +1,23 @@
+.admin-panel {
+  width: 100%;
+  min-height: 100vh;
+  padding: 40px 24px;
+  background: #17191e;
+  border-top: 3px solid #424a58;
+}
+
+.admin-panel__content {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.admin-panel__content > h2 {
+  margin-top: 0;
+}
+
+@media (max-width: 600px) {
+  .admin-panel {
+    padding: 24px 12px;
+  }
+}

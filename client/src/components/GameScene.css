@@ -1,0 +1,85 @@
+.game-scene {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  color: #ffffff;
+  background: linear-gradient(180deg, #273f5b 0%, #66859e 55%, #a1aab0 100%);
+}
+
+.game-scene[data-phase="night"] {
+  background: linear-gradient(180deg, #080f26 0%, #17294c 60%, #26354f 100%);
+}
+
+.game-scene[data-phase="day"] {
+  background: linear-gradient(180deg, #4c83b6 0%, #85bad2 60%, #e0bd7c 100%);
+}
+
+.game-scene__header,
+.game-scene__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.game-scene__header h1 {
+  margin: 0;
+  font-size: clamp(20px, 3vw, 32px);
+}
+
+.game-scene__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  text-align: center;
+}
+
+.game-scene__content h2 {
+  margin: 0;
+}
+
+.game-scene__players {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 1100px;
+}
+
+.game-scene__player {
+  overflow: hidden;
+  border: 2px solid #a5b4c5;
+  border-radius: 14px;
+  background: #202936;
+}
+
+.game-scene__camera-placeholder {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  font-size: 32px;
+  background: #344154;
+}
+
+.game-scene__player-name {
+  padding: 10px;
+  font-weight: 600;
+}
+
+.game-scene__footer {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+@media (max-width: 600px) {
+  .game-scene {
+    padding: 12px;
+  }
+}

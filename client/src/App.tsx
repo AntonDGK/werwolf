@@ -3,8 +3,8 @@ import "./App.css";
 
 import CameraPreview from "./components/CameraPreview";
 import LoginScreen from "./components/LoginScreen";
-import AccountManager from "./components/AccountManager";
-import StorytellerManager from "./components/StorytellerManager";
+import GameScene from "./components/GameScene";
+import AdminPanel from "./components/AdminPanel";
 import { socket } from "./socket";
 import type { UserRole, GamePhase } from "./types/Types";
 import type { PublicPlayer } from "./types/Player";
@@ -116,7 +116,7 @@ export default function App() {
 
   return (
     <main className="werwolf-app">
-      <h1>🐺 Werwolf Engine</h1>
+      {screen === "start" && <h1>Werwolf Engine</h1>}
 
       {screen === "start" ? (
         <LoginScreen
@@ -136,31 +136,20 @@ export default function App() {
           }}
         />
       ) : (
-        <section className="werwolf-panel">
-          <h2>{screen === "lobby" ? "Lobby" : `Spielphase: ${screen}`}</h2>
-          <p>Willkommen, {name}!</p>
-          <p>Deine Berechtigung: {userRole}</p>
+        <>
+          <GameScene
+            phase={screen}
+            name={name}
+            userRole={userRole}
+            players={players}
+          />
 
-          <h3>Teilnehmer ({players.length})</h3>
-          <ul>
-            {players.map((player) => (
-              <li key={player.id}>
-                {player.name} – {player.userRole}
-              </li>
-            ))}
-          </ul>
-
-          {/* Nur der Gamemaster sieht die Rollen- und Kontoverwaltung. */}
           {userRole === "gamemaster" && (
-            <>
-              <StorytellerManager players={players} />
-              <AccountManager />
-            </>
+            <AdminPanel players={players} />
           )}
-
-          {/* Später: Spielsteuerung für Erzähler und Werwolf-Phasen. */}
-        </section>
+        </>
       )}
+
 
       {/* Bestehende Kamerafunktion bleibt unverändert eingebunden. */}
       <CameraPreview />
