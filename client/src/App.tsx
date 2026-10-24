@@ -4,6 +4,7 @@ import "./App.css";
 import CameraPreview from "./components/CameraPreview";
 import LoginScreen from "./components/LoginScreen";
 import AccountManager from "./components/AccountManager";
+import StorytellerManager from "./components/StorytellerManager";
 import { socket } from "./socket";
 
 type UserRole = "gamemaster" | "storyteller" | "player";
@@ -25,6 +26,10 @@ function isGamePhase(value: unknown): value is GamePhase {
     value === "day" ||
     value === "finished"
   );
+}
+
+function isUserRole(value: unknown): value is UserRole {
+  return value === "gamemaster" || value === "storyteller" || value === "player";
 }
 
 export default function App() {
@@ -62,6 +67,14 @@ export default function App() {
       setScreen("lobby");
     };
 
+    // Der Server informiert den betroffenen Spieler persönlich darüber,
+    // ob er zum Erzähler ernannt oder wieder zum Spieler gemacht wurde.
+    const handleRoleChanged = (role: unknown) => {
+      if (role === "player" || role === "storyteller") {
+        setUserRole(role);
+      }
+    };
+
     const handleAuthError = (message: unknown) => {
       setLoginError(
         typeof message === "string" ? message : "Anmeldung fehlgeschlagen."
@@ -69,21 +82,29 @@ export default function App() {
     };
 
     const handlePhaseChanged = (phase: unknown) => {
-      if (isGamePhase(phase)) {
-        setScreen(phase);
-      }
+      if (isGamePhase(phase)) setScreen(phase);
     };
 
-    const handlePlayers = (list: PublicPlayer[]) => {
-      if (Array.isArray(list)) {
-        setPlayers(list);
-      }
+    const handlePlayers = (list: unknown) => {
+      if (!Array.isArray(list)) return;
+
+      const validPlayers = list.filter(
+        (player): player is PublicPlayer =>
+          player !== null &&
+          typeof player === "object" &&
+          typeof player.id === "string" &&
+          typeof player.name === "string" &&
+          isUserRole(player.userRole) &&
+          (typeof player.color === "string" || player.color === null)
+      );
+      setPlayers(validPlayers);
     };
 
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("joined", handleJoined);
     socket.on("joinedAdmin", handleJoinedAdmin);
+    socket.on("role:changed", handleRoleChanged);
     socket.on("auth:error", handleAuthError);
     socket.on("phaseChanged", handlePhaseChanged);
     socket.on("players", handlePlayers);
@@ -93,6 +114,7 @@ export default function App() {
       socket.off("disconnect", handleDisconnect);
       socket.off("joined", handleJoined);
       socket.off("joinedAdmin", handleJoinedAdmin);
+      socket.off("role:changed", handleRoleChanged);
       socket.off("auth:error", handleAuthError);
       socket.off("phaseChanged", handlePhaseChanged);
       socket.off("players", handlePlayers);
@@ -126,7 +148,7 @@ export default function App() {
           <p>Willkommen, {name}!</p>
           <p>Deine Berechtigung: {userRole}</p>
 
-          <h3>Spieler ({players.length})</h3>
+          <h3>Teilnehmer ({players.length})</h3>
           <ul>
             {players.map((player) => (
               <li key={player.id}>
@@ -135,15 +157,19 @@ export default function App() {
             ))}
           </ul>
 
-          {/* Kontoerstellung, Passwort-Reset, Kick und Löschen im Admin-Bereich. */}
-          {userRole === "gamemaster" && <AccountManager />}
+          {/* Nur der Gamemaster sieht die Rollen- und Kontoverwaltung. */}
+          {userRole === "gamemaster" && (
+            <>
+              <StorytellerManager players={players} />
+              <AccountManager />
+            </>
+          )}
 
-          {/* TODO: Erzähler ernennen und Werwolf-Spielphasen steuern. */}
-          {/* TODO: GM-Freigabe-Warteraum statt direktem Spielerbeitritt. */}
+          {/* Später: Spielsteuerung für Erzähler und Werwolf-Phasen. */}
         </section>
       )}
 
-      {/* Kamera bleibt unabhängig vom Login eingebunden. */}
+      {/* Bestehende Kamerafunktion bleibt unverändert eingebunden. */}
       <CameraPreview />
     </main>
   );
