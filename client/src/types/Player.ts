@@ -27,3 +27,4 @@ export type Player = {
   // TODO: Kamerastatus später separat verwalten.
   // Browserinterne Kamera-IDs nicht an den Server senden.
 };
+export type PublicPlayer = Omit<Player, "gameRole">;
