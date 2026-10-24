@@ -32,6 +32,9 @@ type PublicAccount = {
 };
 
 const playerAccounts = new Map<string, PlayerAccount>();
+// Geheimrollen bleiben pro Konto auch bei einem Socket-Reconnect erhalten.
+// Wie die Konten gehen sie bei einem Server-Neustart verloren.
+const gameRolesByAccount = new Map<string, string>();
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
 // Kamera-Freigaben gelten nur fuer die aktuelle Socket-Verbindung.
@@ -153,6 +156,33 @@ function broadcastAccountList(): void {
   }
 }
 
+// Nur der Gamemaster sieht die gesamte Zuordnung. Jeder andere Client
+// erhaelt ausschliesslich die eigene Rolle; Werwoelfe kennen ihr Team.
+function syncGameRoles(): void {
+  const available = roleManager.getPublicCatalog();
+  const byId = new Map(available.map((entry) => [entry.id, entry]));
+  const assignments = players
+    .filter((p) => p.userRole === "player")
+    .map((p) => ({ playerId: p.id, roleId: p.gameRole }));
+  for (const receiver of players) {
+    if (receiver.userRole === "gamemaster") {
+      io.to(receiver.id).emit("game-role:assignments", assignments);
+      continue;
+    }
+    const assigned = receiver.userRole === "player" && receiver.gameRole
+      ? byId.get(receiver.gameRole) ?? null
+      : null;
+    io.to(receiver.id).emit("game-role:self", assigned
+      ? { roleId: assigned.id, name: assigned.name }
+      : { roleId: null, name: null });
+    const teammates = receiver.userRole === "player" && receiver.gameRole === "werewolf"
+      ? players.filter((p) => p.userRole === "player" && p.gameRole === "werewolf" && p.id !== receiver.id)
+          .map((p) => ({ id: p.id, name: p.name }))
+      : [];
+    io.to(receiver.id).emit("game-role:teammates", teammates);
+  }
+}
+
 function broadcastPlayers(): void {
   // Keine geheimen Werwolf-Rollen, Kamera-IDs oder Passwörter senden.
   const publicPlayers = players.map((player) => ({
@@ -168,6 +198,7 @@ function broadcastPlayers(): void {
   }
 
   broadcastAccountList();
+  syncGameRoles();
 }
 
 // Zentrale Hilfsfunktion für serverseitige Änderungen an Spielern.
@@ -415,6 +446,7 @@ io.on("connection", (socket) => {
 
     const key = accountKey(account.name);
     playerAccounts.delete(key);
+    gameRolesByAccount.delete(key);
     loginAttempts.delete(key);
     disconnectPlayerAccount(account.name, "Dein Zugang wurde gelöscht.");
 
@@ -503,7 +535,7 @@ io.on("connection", (socket) => {
       id: socket.id,
       name: account.name,
       userRole: "player",
-      gameRole: null,
+      gameRole: gameRolesByAccount.get(key) ?? null,
       isAlive: true,
       color: null,
     };
@@ -561,7 +593,9 @@ io.on("connection", (socket) => {
 
     // Der neue Erzähler bleibt Inhaber seines vorhandenen Spielerkontos.
     if (target && target.userRole !== "storyteller") {
-      updatePlayer(target.id, { userRole: "storyteller" });
+      // Erzähler besitzt keine geheime Spielerrolle.
+      gameRolesByAccount.delete(accountKey(target.name));
+      updatePlayer(target.id, { userRole: "storyteller", gameRole: null });
       io.to(target.id).emit("phase:step:changed", phaseManager.getStatus());
       console.log(`${target.name} wurde zum Erzähler ernannt.`);
     } else if (targetId === null) {
@@ -572,7 +606,50 @@ io.on("connection", (socket) => {
     broadcastPlayers();
     socket.emit("storyteller:updated");
   });
-// =====================================================
+  // =====================================================
+  // SPIELROLLEN – MANUELLE VERGABE (NUR GAMEMASTER)
+  // =====================================================
+  // Admin-Oberflaeche kann nach dem Mounten die aktuellen Daten erneut laden.
+  socket.on("game-role:request", () => {
+    if (!isAdmin(socket.id)) return;
+    socket.emit("role:catalog", roleManager.getPublicCatalog());
+    socket.emit("game-role:assignments", players
+      .filter((p) => p.userRole === "player")
+      .map((p) => ({ playerId: p.id, roleId: p.gameRole })));
+  });
+
+  socket.on("game-role:assign", (input: unknown) => {
+    if (!isAdmin(socket.id)) {
+      socket.emit("game-role:error", "Keine Berechtigung.");
+      return;
+    }
+    if (phaseManager.currentPhase !== "lobby" && phaseManager.currentPhase !== "preparation") {
+      socket.emit("game-role:error", "Rollen koennen nur vor Spielbeginn geaendert werden.");
+      return;
+    }
+    if (!input || typeof input !== "object") {
+      socket.emit("game-role:error", "Ungueltige Eingabe.");
+      return;
+    }
+    const { playerId, roleId } = input as { playerId?: unknown; roleId?: unknown };
+    if (typeof playerId !== "string" ||
+      (roleId !== null && !roleManager.isValidRoleId(roleId))) {
+      socket.emit("game-role:error", "Spieler oder Rolle ungueltig.");
+      return;
+    }
+    const target = participant(playerId);
+    if (!target || target.userRole !== "player") {
+      socket.emit("game-role:error", "Nur angemeldeten Spielern kann eine Rolle zugewiesen werden.");
+      return;
+    }
+    if (roleId === null) gameRolesByAccount.delete(accountKey(target.name));
+    else gameRolesByAccount.set(accountKey(target.name), roleId as string);
+    updatePlayer(target.id, { gameRole: roleId as string | null });
+    syncGameRoles();
+    socket.emit("game-role:updated");
+  });
+
+  // =====================================================
 // SPIELPHASEN-STEUERUNG
 // =====================================================
 

@@ -9,6 +9,8 @@ type GameSceneProps = {
   name: string;
   userRole: UserRole;
   players: PublicPlayer[];
+  privateRole?: { roleId: string | null; name: string | null };
+  teammates?: { id: string; name: string }[];
   onOpenCamera?: () => void;
 };
 
@@ -25,6 +27,8 @@ export default function GameScene({
   name,
   userRole,
   players,
+  privateRole,
+  teammates = [],
   onOpenCamera,
 }: GameSceneProps) {
   return (
@@ -49,6 +53,12 @@ export default function GameScene({
       <footer className="game-scene__footer">
         <span>{name}</span>
         <span>{userRole}</span>
+        {userRole === "player" && privateRole?.name && (
+          <span title="Nur deine eigene Rolle">🎭 {privateRole.name}</span>
+        )}
+        {userRole === "player" && privateRole?.roleId === "werewolf" && teammates.length > 0 && (
+          <span title="Nur für Werwölfe sichtbar">🐺 Team: {teammates.map((p) => p.name).join(", ")}</span>
+        )}
         <RoleNotebook />
         {userRole !== "gamemaster" && onOpenCamera && (
           <button type="button" onClick={onOpenCamera} aria-label="Kameraeinstellungen öffnen">

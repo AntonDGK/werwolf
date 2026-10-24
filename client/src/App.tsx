@@ -13,6 +13,8 @@ import type { UserRole, GamePhase } from "./types/Types";
 import type { PublicPlayer } from "./types/Player";
 
 type Screen = "start" | GamePhase;
+type PrivateRole = { roleId: string | null; name: string | null };
+type Teammate = { id: string; name: string };
 
 function isGamePhase(value: unknown): value is GamePhase {
   return (
@@ -37,6 +39,8 @@ function AppContent() {
   const [userRole, setUserRole] = useState<UserRole>("player");
   const [connected, setConnected] = useState(socket.connected);
   const [players, setPlayers] = useState<PublicPlayer[]>([]);
+  const [privateRole, setPrivateRole] = useState<PrivateRole>({ roleId: null, name: null });
+  const [teammates, setTeammates] = useState<Teammate[]>([]);
   const [loginError, setLoginError] = useState("");
 
   useEffect(() => {
@@ -51,6 +55,8 @@ function AppContent() {
       setScreen("start");
       setCameraSettingsOpen(false);
       setPlayers([]);
+      setPrivateRole({ roleId: null, name: null });
+      setTeammates([]);
       setUserRole("player");
       setLoginError("");
     };
@@ -86,6 +92,8 @@ function AppContent() {
 
     const handleKicked = (message: unknown) => {
       stopCamera();
+      setPrivateRole({ roleId: null, name: null });
+      setTeammates([]);
       setLoginError(
         typeof message === "string" ? message : "Deine Sitzung wurde beendet."
       );
@@ -111,6 +119,22 @@ function AppContent() {
       setPlayers(validPlayers);
     };
 
+    const handlePrivateRole = (value: unknown) => {
+      if (!value || typeof value !== "object") return;
+      const role = value as { roleId?: unknown; name?: unknown };
+      if ((role.roleId === null || typeof role.roleId === "string") &&
+          (role.name === null || typeof role.name === "string")) {
+        setPrivateRole({ roleId: role.roleId, name: role.name } as PrivateRole);
+      }
+    };
+    const handleTeammates = (value: unknown) => {
+      if (!Array.isArray(value)) return;
+      setTeammates(value.filter((v): v is Teammate =>
+        v && typeof v.id === "string" && typeof v.name === "string"));
+    };
+
+    socket.on("game-role:self", handlePrivateRole);
+    socket.on("game-role:teammates", handleTeammates);
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("joined", handleJoined);
@@ -122,6 +146,8 @@ function AppContent() {
     socket.on("players", handlePlayers);
 
     return () => {
+      socket.off("game-role:self", handlePrivateRole);
+      socket.off("game-role:teammates", handleTeammates);
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
       socket.off("joined", handleJoined);
@@ -176,6 +202,8 @@ function AppContent() {
             name={name}
             userRole={userRole}
             players={players}
+            privateRole={privateRole}
+            teammates={teammates}
             onOpenCamera={
               userRole !== "gamemaster"
                 ? () => setCameraSettingsOpen(true)

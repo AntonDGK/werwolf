@@ -1,0 +1,28 @@
+.role-assignment {
+  padding: 20px;
+  margin: 22px 0;
+  background: #222833;
+  border: 1px solid #556075;
+  border-radius: 14px;
+}
+.role-assignment h2 { margin-top: 0; }
+.role-assignment__list { display: grid; gap: 10px; }
+.role-assignment__entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #161d29;
+  border-radius: 8px;
+}
+.role-assignment__entry select {
+  min-width: 170px;
+  padding: 8px;
+  color: #fff;
+  background: #303c50;
+  border: 1px solid #71819b;
+  border-radius: 6px;
+}
+.role-assignment__note { color: #b5beca; font-size: 0.9rem; }

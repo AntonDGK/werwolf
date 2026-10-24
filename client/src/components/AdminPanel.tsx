@@ -2,6 +2,7 @@ import type { PublicPlayer } from "../types/Player";
 import AccountManager from "./AccountManager";
 import StorytellerManager from "./StorytellerManager";
 import CameraAdminPanel from "./CameraAdminPanel";
+import RoleAssignmentPanel from "./RoleAssignmentPanel";
 import "./AdminPanel.css";
 
 type AdminPanelProps = {
@@ -17,6 +18,7 @@ export default function AdminPanel({ players }: AdminPanelProps) {
 
         <CameraAdminPanel />
         <StorytellerManager players={players} />
+        <RoleAssignmentPanel players={players} />
         <AccountManager />
       </div>
     </section>
