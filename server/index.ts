@@ -16,8 +16,8 @@ const io = new Server(httpServer, {
   },
 });
 
-// TODO: Vor dem öffentlichen Betrieb Konten, Sperren und Spielzustand
-// dauerhaft speichern. Diese Daten gehen bei einem Neustart verloren.
+// Gewollte temporäre Speicherung: Konten und Spielzustand gehen bei
+// einem Serverneustart verloren (keine Datenbank vorgesehen).
 const players: Player[] = [];
 
 type PlayerAccount = {
@@ -50,9 +50,11 @@ function isAdmin(socketId: string): boolean {
 
 function findOnlineAccount(name: string): Player | undefined {
   const key = accountKey(name);
+
   return players.find(
     (player) =>
-      player.userRole === "player" && accountKey(player.name) === key
+      player.userRole !== "gamemaster" &&
+      accountKey(player.name) === key
   );
 }
 
@@ -87,6 +89,34 @@ function broadcastPlayers(): void {
   }
 
   broadcastAccountList();
+}
+
+// Zentrale Hilfsfunktion für serverseitige Änderungen an Spielern.
+// Bewusst KEIN allgemeines Socket-Event: Clients dürfen nicht selbst
+// ihre Rolle, Geheimrolle oder andere Spielwerte ändern.
+type PlayerUpdate = Partial<
+  Pick<Player, "userRole" | "gameRole" | "isAlive" | "color">
+>;
+
+function updatePlayer(
+  playerId: string,
+  changes: PlayerUpdate
+): Player | undefined {
+  const player = players.find((entry) => entry.id === playerId);
+  if (!player) return undefined;
+
+  const previousUserRole = player.userRole;
+  Object.assign(player, changes);
+
+  // Nur die öffentliche Berechtigungsrolle wird dem Betroffenen gemeldet.
+  // Die geheime gameRole wird hier ausdrücklich NICHT versendet.
+  if (previousUserRole !== player.userRole) {
+    io.to(player.id).emit("role:changed", player.userRole);
+  }
+
+  // broadcastPlayers() erfolgt nach allen zusammengehörigen Änderungen
+  // im jeweiligen Handler, damit nicht mehrfach gesendet wird.
+  return player;
 }
 
 function disconnectPlayerAccount(name: string, reason: string): boolean {
@@ -402,12 +432,65 @@ io.on("connection", (socket) => {
     broadcastPlayers();
     console.log(`${account.name} hat sich angemeldet.`);
 
-    // TODO: Vor öffentlichem Einsatz den GM-Freigabe-Warteraum ergänzen.
+    // Kein zusätzlicher Freigabe-Warteraum vorgesehen: Kontrolle durch
+    // persönliche Spielerpasswörter und den Gamemaster vor dem Stream.
+  });
+
+  // =====================================================
+  // GAMEMASTER – ERZÄHLER ERNENNEN / ABSETZEN
+  // =====================================================
+  socket.on("storyteller:set", (targetId: unknown) => {
+    if (!isAdmin(socket.id)) {
+      socket.emit("storyteller:error", "Keine Berechtigung.");
+      return;
+    }
+
+    // null setzt den Erzähler ab, eine Socket-ID ernennt einen Spieler.
+    if (targetId !== null && typeof targetId !== "string") {
+      socket.emit("storyteller:error", "Ungültiger Spieler.");
+      return;
+    }
+
+    // Nie den Gamemaster zur Zielperson machen.
+    const target =
+      targetId === null
+        ? undefined
+        : players.find(
+            (player) =>
+              player.id === targetId && player.userRole !== "gamemaster"
+          );
+
+    // Erst validieren, danach Rollen verändern.
+    if (targetId !== null && !target) {
+      socket.emit("storyteller:error", "Spieler nicht gefunden.");
+      return;
+    }
+
+    // Es gibt maximal einen Erzähler. Bei einem Wechsel wird der
+    // vorherige Erzähler wieder zu einem normalen Spieler.
+    for (const player of players) {
+      if (player.userRole === "storyteller" && player.id !== targetId) {
+        updatePlayer(player.id, { userRole: "player" });
+      }
+    }
+
+    // Der neue Erzähler bleibt Inhaber seines vorhandenen Spielerkontos.
+    if (target && target.userRole !== "storyteller") {
+      updatePlayer(target.id, { userRole: "storyteller" });
+      console.log(`${target.name} wurde zum Erzähler ernannt.`);
+    } else if (targetId === null) {
+      console.log("Erzählerberechtigung entfernt.");
+    }
+
+    // Geheimrollen werden weiterhin nicht an alle verteilt.
+    broadcastPlayers();
+    socket.emit("storyteller:updated");
   });
 
   // =====================================================
   // WEBRTC-SIGNALISIERUNG
   // =====================================================
+  
   socket.on("webrtc:signal", (data: unknown) => {
     if (!data || typeof data !== "object") return;
 
@@ -419,7 +502,7 @@ io.on("connection", (socket) => {
     if (typeof targetId !== "string" || targetId === socket.id) return;
     if (!signal || typeof signal !== "object") return;
 
-    // Bis zum Warteraum: Beide müssen zumindest eingeloggt sein.
+    // Beide Seiten müssen mit einem gültigen Konto eingeloggt sein.
     const senderExists = players.some((player) => player.id === socket.id);
     const receiverExists = players.some((player) => player.id === targetId);
     if (!senderExists || !receiverExists) return;
