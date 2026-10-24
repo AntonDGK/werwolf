@@ -1,0 +1,6 @@
+.phase-controls { width: min(100%, 940px); padding: 12px 14px; border: 1px solid #bba78488; background: #111b2dc9; border-radius: 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 16px; text-align: left; }
+.phase-controls__buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.phase-controls button { background: #65452c; color: white; border: 1px solid #a7865d; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+.phase-controls button:hover { background: #80593a; }
+.phase-controls small { width: 100%; text-align: center; opacity: .75; }
+.phase-controls p { width:100%; text-align:center; color:#ffbcb3; }

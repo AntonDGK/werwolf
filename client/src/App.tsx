@@ -114,7 +114,8 @@ function AppContent() {
           typeof player.id === "string" &&
           typeof player.name === "string" &&
           isUserRole(player.userRole) &&
-          (typeof player.color === "string" || player.color === null)
+          (typeof player.color === "string" || player.color === null) &&
+          typeof player.isAlive === "boolean"
       );
       setPlayers(validPlayers);
     };

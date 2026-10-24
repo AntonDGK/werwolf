@@ -3,6 +3,8 @@ import type { PublicPlayer } from "../types/Player";
 import "./GameScene.css";
 import CameraLayer from "./CameraLayer";
 import RoleNotebook from "./RoleNotebook";
+import PhaseControls from "./PhaseControls";
+import DayVotePanel from "./DayVotePanel";
 
 type GameSceneProps = {
   phase: GamePhase;
@@ -47,7 +49,9 @@ export default function GameScene({
               : phaseLabels[phase]}
         </h2>
 
+        <PhaseControls phase={phase} userRole={userRole} />
         <CameraLayer players={players} />
+        {phase === "day" && <DayVotePanel players={players} userRole={userRole} />}
       </div>
 
       <footer className="game-scene__footer">

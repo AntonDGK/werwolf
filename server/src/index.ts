@@ -7,6 +7,7 @@ import type { Player } from "./types/Player";
 import type { GamePhase } from "./types/Types";
 import { RoleManager } from "./roles/RoleManager";
 import { PhaseManager } from "./game/PhaseManager";
+import { DayVoteManager } from "./game/DayVoteManager";
 
 const app = express();
 const httpServer = createServer(app);
@@ -35,6 +36,8 @@ const playerAccounts = new Map<string, PlayerAccount>();
 // Geheimrollen bleiben pro Konto auch bei einem Socket-Reconnect erhalten.
 // Wie die Konten gehen sie bei einem Server-Neustart verloren.
 const gameRolesByAccount = new Map<string, string>();
+// Ein Ausscheiden darf beim erneuten Login nicht zur Auferstehung fuehren.
+const aliveByAccount = new Map<string, boolean>();
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
 // Kamera-Freigaben gelten nur fuer die aktuelle Socket-Verbindung.
@@ -119,6 +122,7 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const roleManager = new RoleManager();
 const phaseManager = new PhaseManager(roleManager);
+const dayVotes = new DayVoteManager();
 
 function accountKey(name: string): string {
   return name.trim().toLocaleLowerCase("de-DE");
@@ -183,6 +187,21 @@ function syncGameRoles(): void {
   }
 }
 
+function syncDayVotes(): void {
+  const eligible = players.filter(p => p.userRole === "player" && p.isAlive);
+  // Bereits abgegebene Stimmen bleiben nach einem Reconnect erhalten.
+  const voterCount = Math.max(eligible.length, dayVotes.voteCount);
+  const shared = dayVotes.getSharedStatus(voterCount, playerAccounts);
+  for (const receiver of players) {
+    io.to(receiver.id).emit("day-vote:status", {
+      ...shared,
+      myVote: receiver.userRole === "player"
+        ? dayVotes.getSelection(accountKey(receiver.name), playerAccounts)
+        : null,
+    });
+  }
+}
+
 function broadcastPlayers(): void {
   // Keine geheimen Werwolf-Rollen, Kamera-IDs oder Passwörter senden.
   const publicPlayers = players.map((player) => ({
@@ -190,6 +209,7 @@ function broadcastPlayers(): void {
     name: player.name,
     userRole: player.userRole,
     color: player.color,
+    isAlive: player.isAlive,
   }));
 
   // Auch die öffentliche Spielerliste nur angemeldeten Teilnehmern senden.
@@ -199,6 +219,7 @@ function broadcastPlayers(): void {
 
   broadcastAccountList();
   syncGameRoles();
+  syncDayVotes();
 }
 
 // Zentrale Hilfsfunktion für serverseitige Änderungen an Spielern.
@@ -447,6 +468,8 @@ io.on("connection", (socket) => {
     const key = accountKey(account.name);
     playerAccounts.delete(key);
     gameRolesByAccount.delete(key);
+    aliveByAccount.delete(key);
+    dayVotes.removeAccount(key);
     loginAttempts.delete(key);
     disconnectPlayerAccount(account.name, "Dein Zugang wurde gelöscht.");
 
@@ -536,7 +559,7 @@ io.on("connection", (socket) => {
       name: account.name,
       userRole: "player",
       gameRole: gameRolesByAccount.get(key) ?? null,
-      isAlive: true,
+      isAlive: aliveByAccount.get(key) ?? true,
       color: null,
     };
 
@@ -595,6 +618,7 @@ io.on("connection", (socket) => {
     if (target && target.userRole !== "storyteller") {
       // Erzähler besitzt keine geheime Spielerrolle.
       gameRolesByAccount.delete(accountKey(target.name));
+      dayVotes.removeAccount(accountKey(target.name));
       updatePlayer(target.id, { userRole: "storyteller", gameRole: null });
       io.to(target.id).emit("phase:step:changed", phaseManager.getStatus());
       console.log(`${target.name} wurde zum Erzähler ernannt.`);
@@ -683,7 +707,17 @@ io.on("connection", (socket) => {
       return;
     }
 
+    const previousPhase = phaseManager.currentPhase;
     const status = phaseManager.setPhase(nextPhase as GamePhase, players);
+    if (previousPhase !== status.phase) {
+      dayVotes.reset(); // Eine neue Tagesphase startet ohne laufende Abstimmung.
+      if (status.phase === "lobby") {
+        aliveByAccount.clear();
+        for (const participant of players) participant.isAlive = true;
+        broadcastPlayers();
+      }
+      syncDayVotes();
+    }
 
     // Neue Phase an alle angemeldeten Teilnehmer senden.
     for (const participant of players) {
@@ -708,6 +742,68 @@ io.on("connection", (socket) => {
     for (const recipient of players.filter((p) => p.userRole !== "player")) {
       io.to(recipient.id).emit("phase:step:changed", status);
     }
+  });
+
+  // =====================================================
+  // DORFABSTIMMUNG: SERVER VERWALTET STIMMEN, ERZAEHLER ENTSCHEIDET
+  // =====================================================
+  // Alle Aktionen werden auf dem Server geprueft; Stimmen werden pro
+  // Konto, nicht pro Socket-ID gespeichert (Reconnect-sicher).
+  socket.on("day-vote:request", () => {
+    if (!participant(socket.id)) return;
+    syncDayVotes();
+  });
+
+  socket.on("day-vote:start", () => {
+    const actor = participant(socket.id);
+    if (!actor || (actor.userRole !== "storyteller" && actor.userRole !== "gamemaster")) return;
+    if (phaseManager.currentPhase !== "day") {
+      socket.emit("day-vote:error", "Eine Abstimmung ist nur am Tag moeglich.");
+      return;
+    }
+    dayVotes.start();
+    syncDayVotes();
+  });
+
+  socket.on("day-vote:cast", (targetId: unknown) => {
+    const voter = participant(socket.id);
+    if (!voter || voter.userRole !== "player" || !voter.isAlive ||
+        phaseManager.currentPhase !== "day" || dayVotes.currentState !== "open") {
+      socket.emit("day-vote:error", "Du darfst gerade nicht abstimmen.");
+      return;
+    }
+    if (typeof targetId !== "string" || targetId.length > 128) return;
+    const target = participant(targetId);
+    if (!target || target.userRole !== "player" || !target.isAlive) {
+      socket.emit("day-vote:error", "Dieses Ziel ist nicht waehlbar.");
+      return;
+    }
+    dayVotes.cast(accountKey(voter.name), accountKey(target.name));
+    syncDayVotes();
+  });
+
+  socket.on("day-vote:close", () => {
+    const actor = participant(socket.id);
+    if (!actor || (actor.userRole !== "storyteller" && actor.userRole !== "gamemaster")) return;
+    if (phaseManager.currentPhase !== "day" || dayVotes.currentState !== "open") return;
+    dayVotes.close();
+    syncDayVotes();
+  });
+
+  socket.on("day-vote:apply", () => {
+    const actor = participant(socket.id);
+    if (!actor || (actor.userRole !== "storyteller" && actor.userRole !== "gamemaster")) return;
+    if (phaseManager.currentPhase !== "day" || dayVotes.currentState !== "closed") return;
+    const winnerKey = dayVotes.getUniqueWinner(playerAccounts);
+    if (!winnerKey || !playerAccounts.has(winnerKey)) {
+      socket.emit("day-vote:error", "Kein eindeutiges Ergebnis. Bei Gleichstand scheidet niemand automatisch aus.");
+      return;
+    }
+    aliveByAccount.set(winnerKey, false);
+    const player = players.find(p => p.userRole === "player" && accountKey(p.name) === winnerKey);
+    if (player) updatePlayer(player.id, { isAlive: false });
+    dayVotes.resolve();
+    broadcastPlayers();
   });
 
   // =====================================================

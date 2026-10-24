@@ -1,4 +1,3 @@
-
 import type {
   UserRole,
   GameRoleId,
@@ -27,4 +26,7 @@ export type Player = {
   // TODO: Kamerastatus später separat verwalten.
   // Browserinterne Kamera-IDs nicht an den Server senden.
 };
-export type PublicPlayer = Omit<Player, "gameRole">;
+
+// Öffentliche Spielerliste vom Server (niemals geheime Spielrollen).
+// Für App und Admin-Komponenten gemeinsam verwendbar.
+export type PublicPlayer = Pick<Player, "id" | "name" | "userRole" | "color" | "isAlive">;
