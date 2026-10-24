@@ -1,0 +1,9 @@
+.camera-admin { padding: 20px; margin: 20px 0; color: #f8fafc; background: #23262d; border: 1px solid #414751; border-radius: 14px; }
+.camera-admin__list { display: grid; gap: 16px; }
+.camera-admin__card { padding: 14px; border: 1px solid #566072; border-radius: 12px; }
+.camera-admin__card h3 { margin-top: 0; }
+.camera-admin__buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.camera-admin__preview { max-width: 500px; margin: 12px 0; }
+.camera-admin__video { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: black; border-radius: 8px; }
+.camera-admin__danger { background: #9d2835; color: white; border-color: #d35b63; }
+.camera-admin__all { display: block; margin: 20px 0 10px; width: 100%; min-height: 52px; font-weight: 800; }

@@ -1,0 +1,15 @@
+.camera-setup {
+  box-sizing: border-box;
+  width: min(960px, 100%);
+  margin: 0 auto;
+  padding: 20px;
+  color: #f8fafc;
+  background: #252b35;
+  border: 1px solid #465166;
+  border-radius: 14px;
+}
+.camera-setup label { display: block; margin: 12px 0 6px; }
+.camera-setup select { width: 100%; max-width: 100%; padding: 10px; }
+.camera-setup__buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.camera-setup__consent { padding: 12px; border: 1px solid #5c9b7c; border-radius: 10px; margin: 16px 0; }
+.camera-setup small { color: #bec8d6; }

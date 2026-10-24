@@ -34,6 +34,84 @@ type PublicAccount = {
 const playerAccounts = new Map<string, PlayerAccount>();
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
+// Kamera-Freigaben gelten nur fuer die aktuelle Socket-Verbindung.
+// Keine Kameraquelle oder Geraete-ID wird hier gespeichert.
+type CameraStatus = "ready" | "approved" | "blocked";
+type CameraEntry = {
+  status: CameraStatus;
+  epoch: string;
+  reviewing: boolean;
+  previewSeen: boolean;
+};
+const cameraEntries = new Map<string, CameraEntry>();
+
+function participant(id: string): Player | undefined {
+  return players.find((player) => player.id === id);
+}
+
+function broadcastCameras(): void {
+  const approved = Array.from(cameraEntries.entries())
+    .filter(([id, entry]) => entry.status === "approved" && Boolean(participant(id)))
+    .map(([id]) => id);
+  const adminList = players
+    .filter((player) => player.userRole !== "gamemaster")
+    .map((player) => {
+      const entry = cameraEntries.get(player.id);
+      return {
+        id: player.id,
+        name: player.name,
+        status: entry?.status ?? "off",
+        reviewing: entry?.reviewing ?? false,
+        previewSeen: entry?.previewSeen ?? false,
+      };
+    });
+  for (const player of players) {
+    io.to(player.id).emit("camera:catalog", approved);
+    if (player.userRole === "gamemaster") {
+      io.to(player.id).emit("camera:admin:list", adminList);
+    }
+  }
+}
+
+function revokeCamera(id: string, block: boolean): void {
+  const old = cameraEntries.get(id);
+  if (block) {
+    cameraEntries.set(id, {
+      status: "blocked",
+      epoch: randomBytes(16).toString("hex"),
+      reviewing: false,
+      previewSeen: false,
+    });
+  } else {
+    cameraEntries.delete(id);
+  }
+  // Alle angemeldeten Browser entfernen den Stream und beenden ihre P2P-Verbindungen.
+  // Bei boeswilligen WebRTC-Peers kann ein Signalisierungsserver bestehende
+  // Medienverbindungen jedoch nicht physisch erzwingen.
+  for (const player of players) {
+    io.to(player.id).emit("camera:revoke", { cameraId: id, blocked: block });
+  }
+  if (old || block) broadcastCameras();
+}
+
+function requestCameraViewer(cameraId: string, viewerId: string): void {
+  const entry = cameraEntries.get(cameraId);
+  const viewer = participant(viewerId);
+  if (!entry || !viewer || !participant(cameraId) || cameraId === viewerId) return;
+  if (viewer.userRole === "gamemaster") {
+    if (!entry.reviewing && entry.status !== "approved") return;
+  } else if (entry.status !== "approved") {
+    return;
+  }
+  io.to(cameraId).emit("camera:requestViewer", { viewerId, epoch: entry.epoch });
+}
+
+function notifyNewViewer(viewerId: string): void {
+  for (const [cameraId, entry] of cameraEntries) {
+    if (entry.status === "approved") requestCameraViewer(cameraId, viewerId);
+  }
+}
+
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 let currentPhase: GamePhase = "lobby";
@@ -220,6 +298,7 @@ io.on("connection", (socket) => {
     socket.emit("joinedAdmin");
     socket.emit("phaseChanged", currentPhase);
     broadcastPlayers();
+    broadcastCameras();
     console.log("Gamemaster erfolgreich angemeldet.");
   });
 
@@ -430,6 +509,8 @@ io.on("connection", (socket) => {
     socket.emit("joined");
     socket.emit("phaseChanged", currentPhase);
     broadcastPlayers();
+    broadcastCameras();
+    notifyNewViewer(socket.id);
     console.log(`${account.name} hat sich angemeldet.`);
 
     // Kein zusätzlicher Freigabe-Warteraum vorgesehen: Kontrolle durch
@@ -533,50 +614,162 @@ io.on("connection", (socket) => {
   });
 
   // =====================================================
-  // WEBRTC-SIGNALISIERUNG
+  // KAMERA-FREIGABEN: GAMEMASTER PRUEFT, DANN VERTEILEN
   // =====================================================
-  
-  socket.on("webrtc:signal", (data: unknown) => {
-    if (!data || typeof data !== "object") return;
 
-    const { targetId, signal } = data as {
-      targetId?: unknown;
-      signal?: unknown;
-    };
-
-    if (typeof targetId !== "string" || targetId === socket.id) return;
-    if (!signal || typeof signal !== "object") return;
-
-    // Beide Seiten müssen mit einem gültigen Konto eingeloggt sein.
-    const senderExists = players.some((player) => player.id === socket.id);
-    const receiverExists = players.some((player) => player.id === targetId);
-    if (!senderExists || !receiverExists) return;
-
-    const { type, sessionId } = signal as {
-      type?: unknown;
-      sessionId?: unknown;
-    };
-
-    if (
-      typeof type !== "string" ||
-      !["offer", "answer", "ice", "stop"].includes(type) ||
-      typeof sessionId !== "string" ||
-      sessionId.length === 0 ||
-      sessionId.length > 128
-    ) {
+  socket.on("camera:ready", () => {
+    const user = participant(socket.id);
+    if (!user || user.userRole === "gamemaster") return;
+    if (cameraEntries.get(socket.id)?.status === "blocked") {
+      socket.emit("camera:error", "Kamera nach PANIC gesperrt. Gamemaster muss die erneute Einrichtung erlauben.");
       return;
     }
-
-    io.to(targetId).emit("webrtc:signal", {
-      senderId: socket.id,
-      signal,
-    });
+    // Eine laufende Pruefung/Freigabe kann nicht heimlich erneut gestartet werden.
+    // Zum Wechseln muss die alte Kamera zuerst ausgeschaltet werden.
+    if (cameraEntries.has(socket.id)) {
+      socket.emit("camera:error", "Kamera bereits angeboten. Erst ausschalten und neu einrichten.");
+      return;
+    }
+    const entry: CameraEntry = {
+      status: "ready",
+      epoch: randomBytes(16).toString("hex"),
+      reviewing: false,
+      previewSeen: false,
+    };
+    cameraEntries.set(socket.id, entry);
+    socket.emit("camera:ownerState", { status: entry.status, epoch: entry.epoch });
+    broadcastCameras();
   });
+
+  socket.on("camera:cancel", () => {
+    const entry = cameraEntries.get(socket.id);
+    if (!entry || entry.status === "blocked") return;
+    revokeCamera(socket.id, false);
+    socket.emit("camera:ownerState", { status: "off", epoch: null });
+  });
+
+  socket.on("camera:preview:start", (cameraId: unknown) => {
+    if (!isAdmin(socket.id) || typeof cameraId !== "string") return;
+    const entry = cameraEntries.get(cameraId);
+    if (!entry || (entry.status !== "ready" && entry.status !== "approved")) return;
+    entry.reviewing = true;
+    entry.previewSeen = false;
+    // Nur dem Gamemaster wird die Kameraverbindung zur privaten Pruefung angeboten.
+    requestCameraViewer(cameraId, socket.id);
+    broadcastCameras();
+  });
+
+  socket.on("camera:preview:received", (cameraId: unknown) => {
+    if (!isAdmin(socket.id) || typeof cameraId !== "string") return;
+    const entry = cameraEntries.get(cameraId);
+    if (!entry?.reviewing) return;
+    entry.previewSeen = true;
+    broadcastCameras();
+  });
+
+  socket.on("camera:preview:stop", (cameraId: unknown) => {
+    if (!isAdmin(socket.id) || typeof cameraId !== "string") return;
+    const entry = cameraEntries.get(cameraId);
+    if (!entry) return;
+    entry.reviewing = false;
+    entry.previewSeen = false;
+    // Freigegebene Kameras bleiben in der Gamemaster-Spielansicht sichtbar.
+    // Nur die exklusive Vorabkontrolle einer noch nicht freigegebenen Kamera endet.
+    if (entry.status !== "approved") {
+      io.to(cameraId).emit("camera:viewer:removed", { viewerId: socket.id });
+      socket.emit("camera:viewer:stop", { cameraId });
+    }
+    broadcastCameras();
+  });
+
+  socket.on("camera:approve", (cameraId: unknown) => {
+    if (!isAdmin(socket.id) || typeof cameraId !== "string") return;
+    const entry = cameraEntries.get(cameraId);
+    if (!entry || entry.status !== "ready" || !entry.reviewing || !entry.previewSeen) {
+      socket.emit("camera:error", "Zuerst eine echte Kontrollvorschau oeffnen und pruefen.");
+      return;
+    }
+    entry.status = "approved";
+    io.to(cameraId).emit("camera:ownerState", { status: "approved", epoch: entry.epoch });
+    for (const viewer of players) {
+      if (viewer.id !== cameraId) requestCameraViewer(cameraId, viewer.id);
+    }
+    broadcastCameras();
+  });
+
+  socket.on("camera:panic", (cameraId: unknown) => {
+    if (!isAdmin(socket.id) || typeof cameraId !== "string") return;
+    if (!participant(cameraId) || participant(cameraId)?.userRole === "gamemaster") return;
+    revokeCamera(cameraId, true);
+  });
+
+  socket.on("camera:panic:all", () => {
+    if (!isAdmin(socket.id)) return;
+    for (const player of players) {
+      if (player.userRole !== "gamemaster") revokeCamera(player.id, true);
+    }
+    broadcastCameras();
+  });
+
+  socket.on("camera:unblock", (cameraId: unknown) => {
+    if (!isAdmin(socket.id) || typeof cameraId !== "string") return;
+    const entry = cameraEntries.get(cameraId);
+    if (!entry || entry.status !== "blocked") return;
+    cameraEntries.delete(cameraId);
+    io.to(cameraId).emit("camera:unblocked");
+    broadcastCameras();
+  });
+
+  // Signalisiert ausschliesslich durch den Server erlaubte Kamerapaare.
+  // Kamerabesitzer startet immer das Offer, Zuschauer antwortet.
+  socket.on("camera:signal", (input: unknown) => {
+    if (!input || typeof input !== "object") return;
+    const { cameraId, targetId, epoch, signal } = input as {
+      cameraId?: unknown; targetId?: unknown; epoch?: unknown; signal?: unknown;
+    };
+    if (typeof cameraId !== "string" || typeof targetId !== "string" ||
+        typeof epoch !== "string" || !signal || typeof signal !== "object") return;
+    if (!participant(socket.id) || !participant(cameraId) || !participant(targetId)) return;
+    if (cameraId === targetId || (socket.id !== cameraId && socket.id !== targetId)) return;
+    const entry = cameraEntries.get(cameraId);
+    if (!entry || entry.epoch !== epoch || entry.status === "blocked") return;
+    const viewerId = cameraId === socket.id ? targetId : socket.id;
+    const viewer = participant(viewerId);
+    const permitted = viewer?.userRole === "gamemaster"
+      ? entry.reviewing || entry.status === "approved"
+      : entry.status === "approved";
+    if (!permitted) return;
+    const { type, sessionId } = signal as { type?: unknown; sessionId?: unknown };
+    if (typeof sessionId !== "string" || sessionId.length < 8 || sessionId.length > 128) return;
+    if (type !== "offer" && type !== "answer" && type !== "ice" && type !== "stop") return;
+    if (type === "offer" && socket.id !== cameraId) return;
+    if (type === "answer" && socket.id !== viewerId) return;
+    // SDP/ICE Laenge begrenzen; auch wenn Socket.IO keine Video-Frames transportiert.
+    try {
+      if (JSON.stringify(signal).length > 32768) return;
+    } catch {
+      return;
+    }
+    io.to(targetId).emit("camera:signal", { senderId: socket.id, cameraId, epoch, signal });
+  });
+
+  // Alter passwortloser Kamera-Techniktest (`webrtc:signal`) ist ABSICHTLICH
+  // entfernt. Sonst koennten alte Clients die neue Kamera-Freigabe umgehen.
+  // Ausschliesslich `camera:signal` wird mit der Server-Freigabe vermittelt.
 
   // =====================================================
   // VERBINDUNG TRENNEN
   // =====================================================
   socket.on("disconnect", () => {
+    const disconnectedUser = participant(socket.id);
+    if (disconnectedUser?.userRole === "gamemaster") {
+      // Fail-closed: Ohne Gamemaster-Pruefung keine automatische Wiederfreigabe.
+      for (const [cameraId, entry] of cameraEntries) {
+        if (entry.status !== "blocked") revokeCamera(cameraId, true);
+      }
+    } else if (cameraEntries.has(socket.id)) {
+      revokeCamera(socket.id, false);
+    }
     const index = players.findIndex((player) => player.id === socket.id);
     if (index === -1) return;
 

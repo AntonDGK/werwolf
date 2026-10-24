@@ -1,6 +1,7 @@
 import type { GamePhase, UserRole } from "../types/Types";
 import type { PublicPlayer } from "../types/Player";
 import "./GameScene.css";
+import CameraLayer from "./CameraLayer";
 
 type GameSceneProps = {
   phase: GamePhase;
@@ -41,14 +42,7 @@ export default function GameScene({
               : phaseLabels[phase]}
         </h2>
 
-        <div className="game-scene__players">
-          {players.map((player) => (
-            <div className="game-scene__player" key={player.id}>
-              <div className="game-scene__camera-placeholder">📹</div>
-              <div className="game-scene__player-name">{player.name}</div>
-            </div>
-          ))}
-        </div>
+        <CameraLayer players={players} />
       </div>
 
       <footer className="game-scene__footer">

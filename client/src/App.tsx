@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import "./App.css";
 
 import CameraPreview from "./components/CameraPreview";
+import CameraProvider from "./components/CameraProvider";
+import { useCamera } from "./camera/useCamera";
 import LoginScreen from "./components/LoginScreen";
 import type { LoginMode } from "./components/LoginScreen";
 import GameScene from "./components/GameScene";
@@ -26,7 +28,8 @@ function isUserRole(value: unknown): value is UserRole {
   return value === "gamemaster" || value === "storyteller" || value === "player";
 }
 
-export default function App() {
+function AppContent() {
+  const { stopCamera } = useCamera();
   const [screen, setScreen] = useState<Screen>("start");
   const [loginMode, setLoginMode] = useState<LoginMode>("player");
   const [cameraSettingsOpen, setCameraSettingsOpen] = useState(false);
@@ -43,6 +46,7 @@ export default function App() {
     };
 
     const handleDisconnect = () => {
+      stopCamera();
       setConnected(false);
       setScreen("start");
       setCameraSettingsOpen(false);
@@ -54,11 +58,13 @@ export default function App() {
     const handleJoined = () => {
       setUserRole("player");
       setLoginError("");
-      setCameraSettingsOpen(false);
+      // Nach Login die vorbereitete Kamera ausdruecklich zur Pruefung anbieten lassen.
+      setCameraSettingsOpen(true);
       setScreen("lobby");
     };
 
     const handleJoinedAdmin = () => {
+      stopCamera();
       setName("Gamemaster");
       setUserRole("gamemaster");
       setLoginError("");
@@ -79,6 +85,7 @@ export default function App() {
     };
 
     const handleKicked = (message: unknown) => {
+      stopCamera();
       setLoginError(
         typeof message === "string" ? message : "Deine Sitzung wurde beendet."
       );
@@ -125,6 +132,8 @@ export default function App() {
       socket.off("phaseChanged", handlePhaseChanged);
       socket.off("players", handlePlayers);
     };
+    // Die Socket-Callbacks verwenden beim Stopp nur langlebige Refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Kamera niemals automatisch starten. "enabled" schützt insbesondere den Gamemaster.
@@ -143,7 +152,10 @@ export default function App() {
         <LoginScreen
           connected={connected}
           loginError={loginError}
-          onModeChange={setLoginMode}
+          onModeChange={(mode) => {
+            setLoginMode(mode);
+            if (mode === "gamemaster") stopCamera();
+          }}
           onPlayerJoin={(playerName, playerPassword) => {
             setLoginError("");
             setName(playerName);
@@ -192,5 +204,13 @@ export default function App() {
         <CameraPreview enabled={cameraAllowed} authenticated={screen !== "start"} />
       </div>
     </main>
+  );
+}
+
+export default function App() {
+  return (
+    <CameraProvider>
+      <AppContent />
+    </CameraProvider>
   );
 }

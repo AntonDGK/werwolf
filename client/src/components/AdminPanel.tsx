@@ -1,6 +1,7 @@
 import type { PublicPlayer } from "../types/Player";
 import AccountManager from "./AccountManager";
 import StorytellerManager from "./StorytellerManager";
+import CameraAdminPanel from "./CameraAdminPanel";
 import "./AdminPanel.css";
 
 type AdminPanelProps = {
@@ -14,6 +15,7 @@ export default function AdminPanel({ players }: AdminPanelProps) {
         <h2>⚙️ Gamemaster-Einstellungen</h2>
         <p>Hier findest du die zusätzlichen Verwaltungsfunktionen.</p>
 
+        <CameraAdminPanel />
         <StorytellerManager players={players} />
         <AccountManager />
       </div>
