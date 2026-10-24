@@ -1,16 +1,10 @@
 import { useEffect, useState } from "react";
 import { socket } from "../socket";
-
-type UserRole = "gamemaster" | "storyteller" | "player";
-
-type PlayerInfo = {
-  id: string;
-  name: string;
-  userRole: UserRole;
-};
+import type { PublicPlayer } from "../types/Player";
+import "./StorytellerManager.css";
 
 type StorytellerManagerProps = {
-  players: PlayerInfo[];
+  players: PublicPlayer[];
 };
 
 export default function StorytellerManager({
@@ -67,7 +61,7 @@ export default function StorytellerManager({
     };
   }, []);
 
-  const appoint = (player: PlayerInfo) => {
+  const appoint = (player: PublicPlayer) => {
     if (!connected || pending || player.userRole === "storyteller") return;
     if (!window.confirm(`${player.name} zum Erzähler ernennen?`)) return;
 
@@ -86,7 +80,7 @@ export default function StorytellerManager({
   };
 
   return (
-    <section className="account-manager">
+    <section className="storyteller-manager">
       <h2>📖 Erzähler verwalten</h2>
       <p>
         Nur der Gamemaster kann einen angemeldeten Spieler zum Erzähler
@@ -101,16 +95,16 @@ export default function StorytellerManager({
       {candidates.length === 0 ? (
         <p>Aktuell ist kein Spieler angemeldet.</p>
       ) : (
-        <div className="account-list">
+        <div className="storyteller-list">
           {candidates.map((player) => (
-            <div className="account-result" key={player.id}>
+            <div className="storyteller-result" key={player.id}>
               <h4>{player.name}</h4>
               <p>
                 {player.userRole === "storyteller"
                   ? "📖 Aktueller Erzähler"
                   : "Normaler Spieler"}
               </p>
-              <div className="account-actions">
+              <div className="storyteller-actions">
                 <button
                   type="button"
                   disabled={
@@ -129,7 +123,7 @@ export default function StorytellerManager({
       )}
 
       {storyteller && (
-        <div className="account-actions" style={{ marginTop: 12 }}>
+        <div className="storyteller-actions storyteller-remove-actions">
           <button
             type="button"
             disabled={!connected || pending}

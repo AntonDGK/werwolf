@@ -6,17 +6,10 @@ import LoginScreen from "./components/LoginScreen";
 import AccountManager from "./components/AccountManager";
 import StorytellerManager from "./components/StorytellerManager";
 import { socket } from "./socket";
+import type { UserRole, GamePhase } from "./types/Types";
+import type { PublicPlayer } from "./types/Player";
 
-type UserRole = "gamemaster" | "storyteller" | "player";
-type GamePhase = "lobby" | "preparation" | "night" | "day" | "finished";
 type Screen = "start" | GamePhase;
-
-type PublicPlayer = {
-  id: string;
-  name: string;
-  userRole: UserRole;
-  color: string | null;
-};
 
 function isGamePhase(value: unknown): value is GamePhase {
   return (

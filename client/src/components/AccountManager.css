@@ -1,0 +1,45 @@
+/* Kontenverwaltung des Gamemasters */
+.account-manager {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #454a55;
+  border-radius: 12px;
+  background: #1c1f25;
+}
+
+.account-create-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.account-create-form input {
+  flex: 1;
+  min-width: 180px;
+}
+
+.account-result {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 10px;
+  background: #2d313a;
+}
+
+.account-result input {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+}
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.account-manager small {
+  display: block;
+  margin-top: 20px;
+  color: #adb2bd;
+}

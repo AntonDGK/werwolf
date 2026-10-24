@@ -36,7 +36,7 @@ const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-const currentPhase: GamePhase = "lobby";
+let currentPhase: GamePhase = "lobby";
 
 function accountKey(name: string): string {
   return name.trim().toLocaleLowerCase("de-DE");
@@ -485,6 +485,51 @@ io.on("connection", (socket) => {
     // Geheimrollen werden weiterhin nicht an alle verteilt.
     broadcastPlayers();
     socket.emit("storyteller:updated");
+  });
+// =====================================================
+// SPIELPHASEN-STEUERUNG
+// =====================================================
+
+  socket.on("phase:set", (nextPhase: unknown) => {
+    const player = players.find(
+      (player) => player.id === socket.id
+    );
+
+    // Nur Gamemaster und Erzähler dürfen steuern.
+    if (
+      player?.userRole !== "gamemaster" &&
+      player?.userRole !== "storyteller"
+    ) {
+      socket.emit("phase:error", "Keine Berechtigung.");
+      return;
+    }
+
+    const validPhases: GamePhase[] = [
+      "lobby",
+      "preparation",
+      "night",
+      "day",
+      "finished",
+    ];
+
+    if (
+      typeof nextPhase !== "string" ||
+      !validPhases.includes(nextPhase as GamePhase)
+    ) {
+      socket.emit("phase:error", "Ungültige Spielphase.");
+      return;
+    }
+
+    currentPhase = nextPhase as GamePhase;
+
+    // Neue Phase an alle angemeldeten Teilnehmer senden.
+    for (const participant of players) {
+      io.to(participant.id).emit("phaseChanged", currentPhase);
+    }
+
+    console.log(
+      `${player.name} hat die Spielphase auf ${currentPhase} gesetzt.`
+    );
   });
 
   // =====================================================

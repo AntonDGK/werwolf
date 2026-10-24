@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import "./LoginScreen.css";
 
 type LoginMode = "player" | "gamemaster";
 
@@ -36,7 +37,6 @@ export default function LoginScreen({
     if (!cleanName || !playerPassword) return;
 
     // Der Server überprüft Name und persönliches Spielerpasswort.
-    // TODO: Nach erfolgreicher Prüfung GM-Freigabe im Warteraum abwarten.
     onPlayerJoin(cleanName, playerPassword);
   };
 
@@ -132,7 +132,6 @@ export default function LoginScreen({
         </p>
       )}
 
-      {/* TODO: Warteraum und Gamemaster-Freigabe ergänzen. */}
     </section>
   );
 }

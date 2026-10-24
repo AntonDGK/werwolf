@@ -1,0 +1,26 @@
+/* Erzählerverwaltung: Styles unabhängig von der Kontenverwaltung. */
+.storyteller-manager {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #454a55;
+  border-radius: 12px;
+  background: #1c1f25;
+}
+
+.storyteller-result {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 10px;
+  background: #2d313a;
+}
+
+.storyteller-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.storyteller-remove-actions {
+  margin-top: 12px;
+}

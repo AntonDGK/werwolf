@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { socket } from "../socket";
+import "./AccountManager.css";
 
 type AccountInfo = {
   name: string;
@@ -162,7 +163,7 @@ export default function AccountManager() {
       </p>
 
       {!credentials ? (
-        <form className="join-form" onSubmit={createAccount}>
+        <form className="account-create-form" onSubmit={createAccount}>
           <input
             type="text"
             value={name}
@@ -194,7 +195,6 @@ export default function AccountManager() {
             value={credentials.password}
             readOnly
             onFocus={(event) => event.currentTarget.select()}
-            style={{ display: "block", width: "100%", margin: "10px 0" }}
           />
           <div className="account-actions">
             <button type="button" onClick={() => void copyPassword()}>

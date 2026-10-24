@@ -1,0 +1,27 @@
+/* Login-Auswahl und Login-Formular */
+.login-mode-selector {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.login-mode-selector button[aria-pressed="true"] {
+  background: #626b7c;
+  border-color: #8792a5;
+}
+
+.join-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.join-form input {
+  flex: 1;
+  min-width: 180px;
+}
+
+.login-error {
+  color: #ff8f8f;
+  margin-top: 12px;
+}

@@ -1,32 +1,4 @@
-
-/* 🐺 WERWOLF ENGINE – DARK THEME */
-
-:root {
-  font-family: Inter, Arial, sans-serif;
-  color-scheme: dark;
-  background-color: #17191e;
-  color: #e8eaf0;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  margin: 0;
-  width: 100%;
-  min-height: 100vh;
-}
-
-body {
-  background: #17191e;
-  color: #e8eaf0;
-}
-
-/* Hauptbereich */
-
+/* Allgemeines App-Layout; komponentenspezifische Regeln liegen daneben. */
 .werwolf-app {
   width: 100%;
   min-height: 100vh;
@@ -38,65 +10,15 @@ body {
   margin: 20px 0 32px;
 }
 
-/* Panels */
-
 .werwolf-panel {
   width: 100%;
   max-width: 960px;
   margin: 0 auto 24px;
   padding: 24px;
-
   background: #23262d;
   border: 1px solid #363a44;
   border-radius: 16px;
 }
-
-/* Eingabefelder */
-
-input,
-select,
-textarea {
-  background: #2d313a;
-  color: #ffffff;
-  border: 1px solid #454a55;
-  border-radius: 8px;
-  padding: 10px;
-}
-
-/* Buttons */
-
-button {
-  background: #3b404b;
-  color: #ffffff;
-  border: 1px solid #505662;
-  border-radius: 8px;
-  padding: 10px 16px;
-  cursor: pointer;
-}
-
-button:hover:not(:disabled) {
-  background: #4b5260;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Login */
-
-.join-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.join-form input {
-  flex: 1;
-  min-width: 180px;
-}
-
-/* Mobile Ansicht */
 
 @media (max-width: 600px) {
   .werwolf-app {
@@ -106,54 +28,4 @@ button:disabled {
   .werwolf-panel {
     padding: 16px;
   }
-}
-
-.login-mode-selector {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.login-mode-selector button[aria-pressed="true"] {
-  background: #626b7c;
-  border-color: #8792a5;
-}
-
-.login-error {
-  color: #ff8f8f;
-  margin-top: 12px;
-}
-
-.account-manager {
-  margin-top: 24px;
-  padding: 20px;
-  border: 1px solid #454a55;
-  border-radius: 12px;
-  background: #1c1f25;
-}
-
-.account-result {
-  margin-top: 20px;
-  padding: 16px;
-  border-radius: 10px;
-  background: #2d313a;
-}
-
-.account-result input {
-  display: block;
-  width: 100%;
-  margin: 10px 0;
-}
-
-.account-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.account-manager small {
-  display: block;
-  margin-top: 20px;
-  color: #adb2bd;
 }
