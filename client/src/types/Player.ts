@@ -1,7 +1,7 @@
 
 import type {
   UserRole,
-  WerewolfRole,
+  GameRoleId,
 } from "./Types";
 
 export type Player = {
@@ -16,7 +16,7 @@ export type Player = {
 
   // Geheime Rolle innerhalb der Werwolf-Runde
   // null = noch keine Rolle zugewiesen
-  gameRole: WerewolfRole | null;
+  gameRole: GameRoleId | null;
 
   // Lebt der Spieler noch?
   isAlive: boolean;
@@ -27,7 +27,3 @@ export type Player = {
   // TODO: Kamerastatus später separat verwalten.
   // Browserinterne Kamera-IDs nicht an den Server senden.
 };
-
-// Öffentliche Spielerliste vom Server (niemals geheime Spielrollen).
-// Für App und Admin-Komponenten gemeinsam verwendbar.
-export type PublicPlayer = Pick<Player, "id" | "name" | "userRole" | "color">;

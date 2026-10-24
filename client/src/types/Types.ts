@@ -1,70 +1,21 @@
+/** Web app permissions, NOT secret game roles. */
+export type UserRole = "gamemaster" | "storyteller" | "player";
 
-/**
- * WERWOLF ENGINE – GEMEINSAME TYPEN
- */
+/** Role IDs are validated through RoleManager/RoleRegistry on the server. */
+export type GameRoleId = string;
 
-// Berechtigungen auf der Webseite
-export type UserRole =
-  | "gamemaster"
-  | "storyteller"
-  | "player";
+export type GamePhase = "lobby" | "preparation" | "night" | "day" | "finished";
+export type DayStep = "announcement" | "discussion" | "voting" | "resolution";
 
-// Geheime Rollen innerhalb einer Spielrunde
-export type WerewolfRole =
-  | "villager"
-  | "werewolf"
-  | "seer"
-  | "witch"
-  | "healer"
-  | "hunter"
-  | "cupid";
-
-// Hauptphasen
-export type GamePhase =
-  | "lobby"
-  | "preparation"
-  | "night"
-  | "day"
-  | "finished";
-
-// Tagesabschnitte
-export type DayStep =
-  | "announcement"
-  | "discussion"
-  | "voting"
-  | "resolution";
-
-// Nachtabschnitte
-export type NightStep =
-  | "werewolves"
-  | "seer"
-  | "witch"
-  | "healer"
-  | "cupid"
-  | null;
-
-// Aktionen während der Nacht
-export type NightAction =
-  | { type: "werewolf_kill"; targetId: string }
-  | { type: "seer_inspect"; targetId: string }
-  | { type: "healer_protect"; targetId: string }
-  | { type: "witch_heal"; targetId: string }
-  | { type: "witch_poison"; targetId: string }
-  | { type: "cupid_link"; targetIds: [string, string] };
-
-// Spielzustand
+/** No role-specific step union: plugins choose their own phaseGroup. */
 export type GameState = {
   phase: GamePhase;
   round: number;
-  nightStep: NightStep;
+  nightStep: string | null;
   dayStep: DayStep | null;
   gameStarted: boolean;
 };
 
 export const initialGameState: GameState = {
-  phase: "lobby",
-  round: 0,
-  nightStep: null,
-  dayStep: null,
-  gameStarted: false,
+  phase: "lobby", round: 0, nightStep: null, dayStep: null, gameStarted: false,
 };

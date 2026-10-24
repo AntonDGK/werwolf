@@ -1,7 +1,7 @@
 
 import type {
   UserRole,
-  WerewolfRole,
+  GameRoleId,
 } from "./Types";
 
 export type Player = {
@@ -16,7 +16,7 @@ export type Player = {
 
   // Geheime Rolle innerhalb der Werwolf-Runde
   // null = noch keine Rolle zugewiesen
-  gameRole: WerewolfRole | null;
+  gameRole: GameRoleId | null;
 
   // Lebt der Spieler noch?
   isAlive: boolean;

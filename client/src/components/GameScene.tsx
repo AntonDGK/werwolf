@@ -2,6 +2,7 @@ import type { GamePhase, UserRole } from "../types/Types";
 import type { PublicPlayer } from "../types/Player";
 import "./GameScene.css";
 import CameraLayer from "./CameraLayer";
+import RoleNotebook from "./RoleNotebook";
 
 type GameSceneProps = {
   phase: GamePhase;
@@ -48,6 +49,7 @@ export default function GameScene({
       <footer className="game-scene__footer">
         <span>{name}</span>
         <span>{userRole}</span>
+        <RoleNotebook />
         {userRole !== "gamemaster" && onOpenCamera && (
           <button type="button" onClick={onOpenCamera} aria-label="Kameraeinstellungen öffnen">
             ⚙️ Kamera

@@ -5,6 +5,8 @@ import { Server } from "socket.io";
 
 import type { Player } from "./types/Player";
 import type { GamePhase } from "./types/Types";
+import { RoleManager } from "./roles/RoleManager";
+import { PhaseManager } from "./game/PhaseManager";
 
 const app = express();
 const httpServer = createServer(app);
@@ -112,7 +114,8 @@ function notifyNewViewer(viewerId: string): void {
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-let currentPhase: GamePhase = "lobby";
+const roleManager = new RoleManager();
+const phaseManager = new PhaseManager(roleManager);
 
 function accountKey(name: string): string {
   return name.trim().toLocaleLowerCase("de-DE");
@@ -294,7 +297,9 @@ io.on("connection", (socket) => {
 
     players.push(admin);
     socket.emit("joinedAdmin");
-    socket.emit("phaseChanged", currentPhase);
+    socket.emit("phase:step:changed", phaseManager.getStatus());
+    socket.emit("phaseChanged", phaseManager.currentPhase);
+    socket.emit("role:catalog", roleManager.getPublicCatalog());
     broadcastPlayers();
     broadcastCameras();
     console.log("Gamemaster erfolgreich angemeldet.");
@@ -505,7 +510,8 @@ io.on("connection", (socket) => {
 
     players.push(newPlayer);
     socket.emit("joined");
-    socket.emit("phaseChanged", currentPhase);
+    socket.emit("phaseChanged", phaseManager.currentPhase);
+    socket.emit("role:catalog", roleManager.getPublicCatalog());
     broadcastPlayers();
     broadcastCameras();
     notifyNewViewer(socket.id);
@@ -556,6 +562,7 @@ io.on("connection", (socket) => {
     // Der neue Erzähler bleibt Inhaber seines vorhandenen Spielerkontos.
     if (target && target.userRole !== "storyteller") {
       updatePlayer(target.id, { userRole: "storyteller" });
+      io.to(target.id).emit("phase:step:changed", phaseManager.getStatus());
       console.log(`${target.name} wurde zum Erzähler ernannt.`);
     } else if (targetId === null) {
       console.log("Erzählerberechtigung entfernt.");
@@ -599,16 +606,31 @@ io.on("connection", (socket) => {
       return;
     }
 
-    currentPhase = nextPhase as GamePhase;
+    const status = phaseManager.setPhase(nextPhase as GamePhase, players);
 
     // Neue Phase an alle angemeldeten Teilnehmer senden.
     for (const participant of players) {
-      io.to(participant.id).emit("phaseChanged", currentPhase);
+      io.to(participant.id).emit("phaseChanged", status.phase);
     }
 
+    // Rollen-/Schrittdetails nie an gewöhnliche Spieler broadcasten.
+    for (const controller of players.filter((p) => p.userRole !== "player")) {
+      io.to(controller.id).emit("phase:step:changed", status);
+    }
     console.log(
-      `${player.name} hat die Spielphase auf ${currentPhase} gesetzt.`
+      `${player.name} hat die Spielphase auf ${status.phase} gesetzt.`
     );
+  });
+
+  // Nur Spielleitung/Erzähler dürfen zur nächsten geplanten Rollenphase wechseln.
+  // Noch KEINE Rollenaktion und KEINE automatische Veröffentlichung von Geheimrollen.
+  socket.on("phase:step:next", () => {
+    const controller = participant(socket.id);
+    if (controller?.userRole !== "gamemaster" && controller?.userRole !== "storyteller") return;
+    const status = phaseManager.nextStep();
+    for (const recipient of players.filter((p) => p.userRole !== "player")) {
+      io.to(recipient.id).emit("phase:step:changed", status);
+    }
   });
 
   // =====================================================
