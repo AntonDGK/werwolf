@@ -157,10 +157,31 @@ export default function CameraProvider({ children }: { children: ReactNode }) {
     video.muted = true;
     video.playsInline = true;
     video.style.cssText = "width:100%;max-height:75vh;background:black;object-fit:contain";
+    video.style.display = "none";
+
+    const showPreviewButton = popup.document.createElement("button");
+    showPreviewButton.type = "button";
+    showPreviewButton.textContent = "📹 Private Vorschau jetzt anzeigen";
+    showPreviewButton.disabled = true;
+
+    showPreviewButton.addEventListener("click", () => {
+      const stream = streamRef.current;
+      if (!stream || popup.closed) return;
+
+      video.srcObject = stream;
+      video.style.display = "block";
+      void video.play().catch(() => {});
+
+      showPreviewButton.remove();
+    });
     const hint = popup.document.createElement("p");
     hint.textContent = "Fenster schließen = Kamera und alle Übertragungen stoppen.";
-    popup.document.body.append(title, video, hint);
-
+    popup.document.body.append(
+      title,
+      hint,
+      showPreviewButton,
+      video
+    );
     const token = ++requestRef.current;
     setBusy(true);
     setStatusText("Warte auf Kameraberechtigung …");
@@ -187,7 +208,7 @@ export default function CameraProvider({ children }: { children: ReactNode }) {
       }
       streamRef.current = stream;
       setLocalStream(stream);
-      video.srcObject = stream;
+      showPreviewButton.disabled = false;
       track.addEventListener("ended", () => {
         if (streamRef.current === stream) {
           stopLocal(true);

@@ -16,8 +16,6 @@ const io = new Server(httpServer, {
   },
 });
 
-// Gewollte temporäre Speicherung: Konten und Spielzustand gehen bei
-// einem Serverneustart verloren (keine Datenbank vorgesehen).
 const players: Player[] = [];
 
 type PlayerAccount = {
@@ -730,8 +728,13 @@ io.on("connection", (socket) => {
     if (typeof cameraId !== "string" || typeof targetId !== "string" ||
         typeof epoch !== "string" || !signal || typeof signal !== "object") return;
     if (!participant(socket.id) || !participant(cameraId) || !participant(targetId)) return;
-    if (cameraId === targetId || (socket.id !== cameraId && socket.id !== targetId)) return;
-    const entry = cameraEntries.get(cameraId);
+    const ownerSending =
+      socket.id === cameraId && targetId !== cameraId;
+
+    const viewerReplying =
+      socket.id !== cameraId && targetId === cameraId;
+
+    if (!ownerSending && !viewerReplying) return;    const entry = cameraEntries.get(cameraId);
     if (!entry || entry.epoch !== epoch || entry.status === "blocked") return;
     const viewerId = cameraId === socket.id ? targetId : socket.id;
     const viewer = participant(viewerId);
