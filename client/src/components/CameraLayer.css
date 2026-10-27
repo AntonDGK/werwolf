@@ -1,13 +1,17 @@
 .camera-layer {
+  justify-items: center;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 16px;
   width: 100%;
   max-width: 1100px;
+
 }
 .camera-layer__frame {
   min-width: 0;
   min-height: 0;
+  width: 100%;
+  max-width: 360px;
   border: none;
   border-radius: 0;
   padding: 0;
@@ -28,10 +32,32 @@
 .camera-layer__picture {
   position: relative;
   aspect-ratio: 16 / 9;
-  background: #344154;
+  width: 100%;
+  background: transparent;
 }
-.camera-layer__video { width: 100%; height: 100%; object-fit: cover; display: block; background: black; }
-.camera-layer__placeholder { display: grid; place-content: center; gap: 8px; height: 100%; padding: 12px; text-align: center; }
+
+.camera-layer__video {
+  position: absolute;
+  top: 19%;
+  left: 12%;
+  width: 76%;
+  height: 62%;
+  object-fit: cover;
+  display: block;
+  background: black;
+  z-index: 1;
+}
+
+.camera-layer__placeholder {
+  position: absolute;
+  inset: 19% 12%;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  padding: 4px;
+  text-align: center;
+  box-sizing: border-box;
+}
 .camera-layer__placeholder span { font-size: 32px; }
 .camera-layer__placeholder small { color: #dbeafe; }
 .camera-layer__label { padding: 6px 3px; color: white; font-weight: 600; }
