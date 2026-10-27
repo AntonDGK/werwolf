@@ -290,6 +290,25 @@ app.get("/", (_req, res) => {
   res.send("Werwolf Engine Server läuft 🐺");
 });
 
+// Gemeinsamer, serverseitiger Phasenwechsel; die Rollen selbst bleiben privat.
+function setGamePhase(nextPhase: GamePhase): void {
+  const previousPhase = phaseManager.currentPhase;
+  const status = phaseManager.setPhase(nextPhase, players);
+  if (previousPhase !== status.phase) {
+    dayVotes.reset();
+    if (status.phase === "lobby") {
+      aliveByAccount.clear();
+      for (const participant of players) participant.isAlive = true;
+      broadcastPlayers();
+    }
+    syncDayVotes();
+  }
+  for (const recipient of players) io.to(recipient.id).emit("phaseChanged", status.phase);
+  for (const controller of players.filter(p => p.userRole !== "player")) {
+    io.to(controller.id).emit("phase:step:changed", status);
+  }
+}
+
 io.on("connection", (socket) => {
   console.log("Client verbunden:", socket.id);
 
@@ -677,64 +696,65 @@ io.on("connection", (socket) => {
 // SPIELPHASEN-STEUERUNG
 // =====================================================
 
+  // Bestehende direkte Phasensteuerung ist nur fuer den Gamemaster.
+  // Der Erzaehler benutzt ausschliesslich "phase:advance".
   socket.on("phase:set", (nextPhase: unknown) => {
-    const player = players.find(
-      (player) => player.id === socket.id
-    );
-
-    // Nur Gamemaster und Erzähler dürfen steuern.
-    if (
-      player?.userRole !== "gamemaster" &&
-      player?.userRole !== "storyteller"
-    ) {
-      socket.emit("phase:error", "Keine Berechtigung.");
+    if (!isAdmin(socket.id)) {
+      socket.emit("phase:error", "Nur der Gamemaster darf die Phase direkt setzen.");
       return;
     }
-
-    const validPhases: GamePhase[] = [
-      "lobby",
-      "preparation",
-      "night",
-      "day",
-      "finished",
-    ];
-
-    if (
-      typeof nextPhase !== "string" ||
-      !validPhases.includes(nextPhase as GamePhase)
-    ) {
-      socket.emit("phase:error", "Ungültige Spielphase.");
+    const validPhases: GamePhase[] = ["lobby", "preparation", "night", "day", "finished"];
+    if (typeof nextPhase !== "string" || !validPhases.includes(nextPhase as GamePhase)) {
+      socket.emit("phase:error", "Ungueltige Spielphase.");
       return;
     }
+    setGamePhase(nextPhase as GamePhase);
+  });
 
-    const previousPhase = phaseManager.currentPhase;
-    const status = phaseManager.setPhase(nextPhase as GamePhase, players);
-    if (previousPhase !== status.phase) {
-      dayVotes.reset(); // Eine neue Tagesphase startet ohne laufende Abstimmung.
-      if (status.phase === "lobby") {
-        aliveByAccount.clear();
-        for (const participant of players) participant.isAlive = true;
+  // Ein einziger "Weiter"-Knopf fuer Erzaehler und Gamemaster.
+  // Die Abstimmung und Nachtabschnitte wechseln NICHT automatisch.
+  socket.on("phase:advance", () => {
+    const controller = participant(socket.id);
+    if (controller?.userRole !== "gamemaster" && controller?.userRole !== "storyteller") return;
+
+    const phase = phaseManager.currentPhase;
+    if (phase === "lobby") return setGamePhase("preparation");
+    if (phase === "preparation") return setGamePhase("night");
+    if (phase === "night") {
+      // Letzter Abschnitt abgeschlossen (oder es gibt keinen): Tag beginnt.
+      const next = phaseManager.nextStep();
+      if (next.step === null) {
+        return setGamePhase("day");
+      }
+      for (const recipient of players.filter((p) => p.userRole !== "player")) {
+        io.to(recipient.id).emit("phase:step:changed", next);
+      }
+      return;
+    }
+    if (phase === "day") {
+      if (dayVotes.currentState === "idle") {
+        dayVotes.start();
+      } else if (dayVotes.currentState === "open") {
+        dayVotes.close();
+      } else if (dayVotes.currentState === "closed") {
+        const winnerKey = dayVotes.getUniqueWinner(playerAccounts);
+        if (winnerKey && playerAccounts.has(winnerKey)) {
+          aliveByAccount.set(winnerKey, false);
+          const target = players.find(p => p.userRole === "player" && accountKey(p.name) === winnerKey);
+          if (target) updatePlayer(target.id, { isAlive: false });
+        }
+        dayVotes.resolve();
         broadcastPlayers();
+      } else if (dayVotes.currentState === "resolved") {
+        return setGamePhase("night");
       }
       syncDayVotes();
     }
-
-    // Neue Phase an alle angemeldeten Teilnehmer senden.
-    for (const participant of players) {
-      io.to(participant.id).emit("phaseChanged", status.phase);
-    }
-
-    // Rollen-/Schrittdetails nie an gewöhnliche Spieler broadcasten.
-    for (const controller of players.filter((p) => p.userRole !== "player")) {
-      io.to(controller.id).emit("phase:step:changed", status);
-    }
-    console.log(
-      `${player.name} hat die Spielphase auf ${status.phase} gesetzt.`
-    );
+    // "finished" wird spaeter ueber eine serverseitige Siegbedingung erreicht.
   });
 
-  // Nur Spielleitung/Erzähler dürfen zur nächsten geplanten Rollenphase wechseln.
-  // Noch KEINE Rollenaktion und KEINE automatische Veröffentlichung von Geheimrollen.
+  // Legacy-Aufruf bleibt fuer vorhandene Clients moeglich, kontrolliert aber
+  // ausschliesslich den Rollenabschnitt, nicht den gesamten Spielablauf.
   socket.on("phase:step:next", () => {
     const controller = participant(socket.id);
     if (controller?.userRole !== "gamemaster" && controller?.userRole !== "storyteller") return;

@@ -4,6 +4,8 @@ import StorytellerManager from "./StorytellerManager";
 import CameraAdminPanel from "./CameraAdminPanel";
 import RoleAssignmentPanel from "./RoleAssignmentPanel";
 import "./AdminPanel.css";
+import "./AdminPanelReset.css";
+import { socket } from "../socket";
 
 type AdminPanelProps = {
   players: PublicPlayer[];
@@ -20,6 +22,13 @@ export default function AdminPanel({ players }: AdminPanelProps) {
         <StorytellerManager players={players} />
         <RoleAssignmentPanel players={players} />
         <AccountManager />
+        <div className="admin-panel__reset">
+          <button type="button" onClick={() => {
+            if (window.confirm("Wirklich zur Lobby zurückkehren und die Runde zurücksetzen?")) {
+              socket.emit("phase:set", "lobby");
+            }
+          }}>↩ Zur Lobby / Runde zurücksetzen</button>
+        </div>
       </div>
     </section>
   );

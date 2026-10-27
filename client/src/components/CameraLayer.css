@@ -1,8 +1,66 @@
-.camera-layer { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 16px; width: 100%; max-width: 1100px; }
-.camera-layer__frame { min-width: 0; overflow: hidden; border: 2px solid #8394a9; border-radius: 14px; background: #202936; }
-.camera-layer__picture { position: relative; aspect-ratio: 16 / 9; background: #344154; }
+.camera-layer {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 1100px;
+}
+.camera-layer__frame {
+  min-width: 0;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+}
+.camera-layer__frame:disabled {
+  cursor: default;
+  opacity: 1;
+  -webkit-text-fill-color: currentColor;
+}
+.camera-layer__frame--votable { cursor: pointer; }
+.camera-layer__frame--votable:focus-visible { outline: 3px solid #b7e7ff; outline-offset: 5px; }
+.camera-layer__frame--votable:hover .camera-layer__picture { filter: brightness(1.13); }
+.camera-layer__picture {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #344154;
+}
 .camera-layer__video { width: 100%; height: 100%; object-fit: cover; display: block; background: black; }
 .camera-layer__placeholder { display: grid; place-content: center; gap: 8px; height: 100%; padding: 12px; text-align: center; }
 .camera-layer__placeholder span { font-size: 32px; }
 .camera-layer__placeholder small { color: #dbeafe; }
-.camera-layer__label { padding: 10px; color: white; font-weight: 600; }
+.camera-layer__label { padding: 6px 3px; color: white; font-weight: 600; }
+
+/* Kleine, austauschbare Vote-Token direkt auf dem unteren Holzrahmen. */
+.camera-layer__vote-icons {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 40%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  max-width: 95%;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.camera-layer__vote-icons img {
+  display: block;
+  width: clamp(18px, 2vw, 28px);
+  height: clamp(18px, 2vw, 28px);
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+.camera-layer__vote-more {
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff8db;
+  text-shadow: 0 1px 4px #111;
+}

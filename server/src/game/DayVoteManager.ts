@@ -71,13 +71,15 @@ export class DayVoteManager {
   }
 
   getSharedStatus(voterCount: number, accounts: ReadonlyMap<string, VoteAccount>) {
-    const results = this.state === "closed" || this.state === "resolved" ? this.tally(accounts) : [];
+    // Nur aggregierte Stimmenzahlen (niemals Wähleridentitäten) veröffentlichen.
+    // Die Icons am Kamerarahmen aktualisieren sich während der offenen Tageswahl.
+    const results = this.state === "idle" ? [] : this.tally(accounts);
     const uniqueWinner = this.state === "closed" ? this.getUniqueWinner(accounts) : null;
     return {
       state: this.state,
       votesCast: this.votes.size,
       eligibleVoters: voterCount,
-      results, // Erst nach Abstimmungsende oeffentlich
+      results, // Aggregierte Stimmen schon waehrend offener Abstimmung sichtbar
       winner: uniqueWinner ? accounts.get(uniqueWinner)?.name ?? null : null,
     };
   }

@@ -1,10 +1,12 @@
 import type { GamePhase, UserRole } from "../types/Types";
 import type { PublicPlayer } from "../types/Player";
+import { useEffect, useState } from "react";
+import { socket } from "../socket";
 import "./GameScene.css";
 import CameraLayer from "./CameraLayer";
 import RoleNotebook from "./RoleNotebook";
 import PhaseControls from "./PhaseControls";
-import DayVotePanel from "./DayVotePanel";
+import DayVotePanel, { type VoteStatus } from "./DayVotePanel";
 
 type GameSceneProps = {
   phase: GamePhase;
@@ -33,6 +35,19 @@ export default function GameScene({
   teammates = [],
   onOpenCamera,
 }: GameSceneProps) {
+  const [vote, setVote] = useState<VoteStatus | null>(null);
+  const [voteError, setVoteError] = useState("");
+  useEffect(() => {
+    const onStatus = (next: VoteStatus) => { setVote(next); setVoteError(""); };
+    const onError = (message: string) => setVoteError(message);
+    socket.on("day-vote:status", onStatus);
+    socket.on("day-vote:error", onError);
+    socket.emit("day-vote:request");
+    return () => {
+      socket.off("day-vote:status", onStatus);
+      socket.off("day-vote:error", onError);
+    };
+  }, []);
   return (
     <section className="game-scene" data-phase={phase}>
       <header className="game-scene__header">
@@ -41,17 +56,18 @@ export default function GameScene({
       </header>
 
       <div className="game-scene__content">
-        <h2>
+        {userRole !== "storyteller" && <h2>
           {phase === "night"
             ? "🌙 Das Dorf schläft"
             : phase === "day"
               ? "☀️ Das Dorf erwacht"
               : phaseLabels[phase]}
-        </h2>
+        </h2>}
 
         <PhaseControls phase={phase} userRole={userRole} />
-        <CameraLayer players={players} />
-        {phase === "day" && <DayVotePanel players={players} userRole={userRole} />}
+        <CameraLayer players={players} viewerRole={userRole} phase={phase}
+          privateRoleId={privateRole?.roleId} teammateIds={teammates.map(p => p.id)} vote={vote} />
+        {phase === "day" && <DayVotePanel status={vote} userRole={userRole} error={voteError} />}
       </div>
 
       <footer className="game-scene__footer">
