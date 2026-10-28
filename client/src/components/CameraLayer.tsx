@@ -112,7 +112,11 @@ export default function CameraLayer({ players, roleAction = null, visibleFrames 
     players.some(p => p.id === selfId && p.userRole === "player" && p.isAlive) && vote?.state === "open";
 
   return (
-    <div className="camera-layer" style={{ "--camera-rows": layout.rows } as CSSProperties}>
+    <div className="camera-layer" style={{
+      "--camera-rows": layout.rows,
+      "--camera-row-height": layout.rowHeight,
+      "--camera-max-frame-width": layout.maxFrameWidth,
+    } as CSSProperties}>
       {players.filter((player) => player.userRole !== "gamemaster").map((player) => {
         const own = player.id === selfId;
         const stream = own ? localStream : remoteStreams[player.id];

@@ -2,7 +2,7 @@
   position: relative;
   width: 100%;
   max-width: 1160px;
-  height: calc(var(--camera-rows, 1) * clamp(124px, 19.5vw, 232px));
+  height: calc(var(--camera-rows, 1) * var(--camera-row-height, clamp(124px, 19.5vw, 232px)));
   margin-inline: auto;
 }
 .camera-layer__frame {
@@ -10,7 +10,7 @@
   transform: translate(-50%, -50%);
   min-width: 0;
   min-height: 0;
-  max-width: 360px;
+  max-width: var(--camera-max-frame-width, 360px);
   border: none;
   border-radius: 0;
   padding: 0;
