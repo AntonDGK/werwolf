@@ -17,6 +17,8 @@ export const seerConfig = {
     separatePhase: false,
   },
 
+  buttons: { night: [], day: [] },
+
   // Später: Seher während seiner Nachtphase hervorheben
   cameraLayout: {
     night: {

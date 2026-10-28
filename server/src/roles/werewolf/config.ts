@@ -5,6 +5,8 @@ export const werewolfConfig = {
   name: "Werwolf",
   description: "Wählt nachts gemeinsam ein Opfer.",
   frame: "werewolf",
+
+  // Nachtphase
   night: {
     enabled: true,
     separatePhase: true,
@@ -12,16 +14,33 @@ export const werewolfConfig = {
     frequency: "every-night",
     phaseGroup: "werewolves",
   },
+
+  // Tagesphase
   day: {
     enabled: false,
     separatePhase: false,
   },
+
+  buttons: {
+    night: [
+      { id: "confirm", label: "Opfer bestätigen", kind: "confirm", confirmedLabel: "Bestätigt" },
+    ],
+    day: [],
+  },
+
+  // Auswahl muss bestätigt werden
+  selection: {
+    requiresConfirmation: true,
+  },
+
+  // Regeln für die Opferauswahl
   targeting: {
     allowSelfTarget: false,
     allowSameRoleTarget: false,
     onlyAliveTargets: true,
   },
-  // Später: Alle lebenden Werwölfe gemeinsam anordnen
+
+  // Später: Alle lebenden Werwölfe zentral anordnen
   cameraLayout: {
     night: {
       active: {

@@ -28,7 +28,10 @@ export class PhaseManager {
   }
 
   /** Nur fuer die Steuerungsansicht: Rollenabschnitte der laufenden/naechsten Nacht. */
-  getNightTimeline(players: readonly Player[]): ScheduledRoleStep[] {
+  getNightTimeline(
+    players: readonly Pick<Player, "userRole" | "gameRole" | "isAlive">[]
+  )
+  : ScheduledRoleStep[] {
     if (this.phase === "night") return this.steps;
     return this.roleManager.createSteps("night", this.round + 1, players, this.usedOnce);
   }
@@ -37,7 +40,11 @@ export class PhaseManager {
     return { phase: this.phase, round: this.round, step: this.steps[this.stepIndex]?.id ?? null };
   }
 
-  setPhase(next: GamePhase, players: readonly Player[]): PhaseStatus {
+  setPhase(
+    next: GamePhase,
+    players: readonly Pick<Player, "userRole" | "gameRole" | "isAlive">[]
+  )
+  : PhaseStatus {
     if (next === this.phase) return this.getStatus();
     if (next === "lobby") {
       this.round = 0;

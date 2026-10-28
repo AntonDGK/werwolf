@@ -6,6 +6,9 @@ import { Server } from "socket.io";
 import type { Player } from "./types/Player";
 import type { GamePhase } from "./types/Types";
 import { RoleManager } from "./roles/RoleManager";
+import { NightStateManager } from "./roles/NightStateManager";
+import type { RoleActionPhase, RoleActionPlayer, RoleEffect } from "./roles/RoleTypes";
+import { resolveRoleEffects } from "./roles/RoleEffectResolver";
 import { PhaseManager } from "./game/PhaseManager";
 import { DayVoteManager } from "./game/DayVoteManager";
 import { decideWinner, type WinDecision, type WinCheckpoint } from "./game/GameEndManager";
@@ -34,15 +37,10 @@ type PublicAccount = {
 };
 
 const playerAccounts = new Map<string, PlayerAccount>();
-// Geheimrollen bleiben pro Konto auch bei einem Socket-Reconnect erhalten.
-// Wie die Konten gehen sie bei einem Server-Neustart verloren.
 const gameRolesByAccount = new Map<string, string>();
-// Ein Ausscheiden darf beim erneuten Login nicht zur Auferstehung fuehren.
 const aliveByAccount = new Map<string, boolean>();
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
-// Kamera-Freigaben gelten nur fuer die aktuelle Socket-Verbindung.
-// Keine Kameraquelle oder Geraete-ID wird hier gespeichert.
 type CameraStatus = "ready" | "approved" | "blocked";
 type CameraEntry = {
   status: CameraStatus;
@@ -92,9 +90,6 @@ function revokeCamera(id: string, block: boolean): void {
   } else {
     cameraEntries.delete(id);
   }
-  // Alle angemeldeten Browser entfernen den Stream und beenden ihre P2P-Verbindungen.
-  // Bei boeswilligen WebRTC-Peers kann ein Signalisierungsserver bestehende
-  // Medienverbindungen jedoch nicht physisch erzwingen.
   for (const player of players) {
     io.to(player.id).emit("camera:revoke", { cameraId: id, blocked: block });
   }
@@ -122,11 +117,10 @@ function notifyNewViewer(viewerId: string): void {
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const roleManager = new RoleManager();
+const nightState = new NightStateManager();
 const phaseManager = new PhaseManager(roleManager);
 const dayVotes = new DayVoteManager();
 
-// Nur im RAM – dieselben Einstellungen fuer Gamemaster und Erzaehler.
-// Ohne Opt-in bleibt die bisherige manuelle Rollenvergabe unangetastet.
 type RoleDistributionSettings = {
   enabled: boolean;
   counts: Record<string, number>;
@@ -140,6 +134,147 @@ const roleDistributionSettings: RoleDistributionSettings = {
 
 function isController(player: Player | undefined): player is Player {
   return Boolean(player && (player.userRole === "gamemaster" || player.userRole === "storyteller"));
+}
+
+// Stabile Konto-IDs
+function roleActionPlayer(player: Player): RoleActionPlayer {
+  const id = accountKey(player.name);
+  return {
+    id,
+    userRole: player.userRole,
+    gameRole: player.gameRole,
+    isAlive: player.isAlive && roundParticipantKeys.has(id),
+  };
+}
+
+// Rundenrollen, inkl. offline
+function roundRolePlayers(): RoleActionPlayer[] {
+  return [...roundParticipantKeys].filter(key => playerAccounts.has(key)).map(key => ({
+    id: key,
+    userRole: "player" as const,
+    gameRole: gameRolesByAccount.get(key) ?? null,
+    isAlive: aliveByAccount.get(key) ?? true,
+  }));
+}
+
+function applyRoleEffects(effects: readonly RoleEffect[]): void {
+  const roundPlayers = roundRolePlayers();
+  const resolved = resolveRoleEffects(effects, roundPlayers);
+  let eliminated = false;
+
+  for (const effect of resolved.eliminated) {
+    const target = roundPlayers.find(p => p.id === effect.targetId);
+    if (!target) continue;
+    aliveByAccount.set(target.id, false);
+    const online = players.find(p => p.userRole === "player" && accountKey(p.name) === target.id);
+    if (online) updatePlayer(online.id, { isAlive: false });
+    else roleManager.notifyDeath(target);
+    eliminated = true;
+    for (const receiver of players) {
+      io.to(receiver.id).emit("role:eliminated", {
+        playerId: online?.id ?? null,
+        name: playerAccounts.get(target.id)?.name ?? "Spieler",
+        reason: effect.reason,
+      });
+    }
+  }
+
+  for (const targetId of resolved.revealed) {
+    const roleId = gameRolesByAccount.get(targetId) ?? null;
+    const roleName = roleId ? roleManager.getRole(roleId)?.config.name ?? roleId : "Dorfbewohner";
+    for (const receiver of players) {
+      io.to(receiver.id).emit("role:revealed", {
+        playerId: players.find(p => p.userRole === "player" && accountKey(p.name) === targetId)?.id ?? null,
+        name: playerAccounts.get(targetId)?.name ?? "Spieler",
+        roleId,
+        roleName,
+      });
+    }
+  }
+  if (eliminated) broadcastPlayers();
+}
+
+function completeCurrentRoleStep(): void {
+  const phase = currentRoleActionPhase();
+  if (!phase) return;
+  const participants = roundRolePlayers();
+  roleManager.completeStep(phase, participants);
+  if (phase.period === "night" && phase.stepId !== null) {
+    nightState.completeStep(phase.stepId, () =>
+      roleManager.runNightStepEnd(phase, participants, nightState));
+  }
+}
+
+function finishNight(): boolean {
+  const phase = currentRoleActionPhase();
+  if (!phase || phase.period !== "night") return false;
+  completeCurrentRoleStep();
+  nightState.record(roleManager.runEvent("onNightEnd", roundRolePlayers(), phase.round, nightState));
+  applyRoleEffects(nightState.getEffects());
+  nightState.reset();
+  return finishIfWinner("night-end");
+}
+
+function currentRoleActionPhase(): RoleActionPhase | null {
+  const status = phaseManager.getStatus();
+  if (status.phase !== "night" && status.phase !== "day") return null;
+  return { period: status.phase, stepId: status.step, round: status.round };
+}
+
+function sendRoleProgress(): void {
+  const phase = currentRoleActionPhase();
+  if (!phase) return;
+  const progress = roleManager.getConfirmationProgress(
+    players.filter((player) => player.userRole === "player").map(roleActionPlayer),
+    phase,
+  );
+  for (const controller of players.filter(isController)) {
+    io.to(controller.id).emit("role:progress", progress);
+  }
+}
+
+// Private Aktionsfreigabe für jeden Spieler.
+function sendRoleState(receiver: Player): void {
+  const inactive = {
+    active: false, requiresConfirmation: false, confirmed: false,
+    hasSelection: false, selectedTargetId: null as string | null,
+    targetIds: [] as string[], buttons: [] as { id: string; label: string; disabled: boolean }[],
+    nightInfo: null as { werewolfTargetId: string | null } | null,
+  };
+  const phase = currentRoleActionPhase();
+  if (receiver.userRole !== "player" || !phase) {
+    io.to(receiver.id).emit("role:state", inactive);
+    return;
+  }
+
+  const action = roleManager.getActionState(
+    roleActionPlayer(receiver),
+    phase,
+    players.filter(p => p.userRole === "player").map(roleActionPlayer),
+    nightState,
+  );
+  const socketIdForAccount = (key: string): string | null =>
+    players.find(p => p.userRole === "player" && accountKey(p.name) === key)?.id ?? null;
+
+  io.to(receiver.id).emit("role:state", {
+    active: action.active,
+    requiresConfirmation: action.requiresConfirmation,
+    confirmed: action.confirmed,
+    buttons: action.buttons,
+    nightInfo: action.nightInfo ? {
+      werewolfTargetId: action.nightInfo.werewolfTargetId
+        ? socketIdForAccount(action.nightInfo.werewolfTargetId) : null,
+    } : null,
+    hasSelection: action.selectionId !== null,
+    selectedTargetId: action.selectionId ? socketIdForAccount(action.selectionId) : null,
+    targetIds: action.allowedTargetIds
+      .map(socketIdForAccount)
+      .filter((id): id is string => id !== null),
+  });
+}
+
+function syncRoleStates(): void {
+  for (const player of players) sendRoleState(player);
 }
 
 function distributionStatus() {
@@ -159,8 +294,6 @@ function syncDistributionStatus(): void {
   for (const player of players) sendDistributionStatus(player);
 }
 
-// Server nimmt niemals zufaellige Rollenzuordnungen vom Client entgegen.
-// Die Werte werden erst beim Beginn einer neuen Runde angewendet.
 function distributeRolesForNewRound(): boolean {
   if (!roleDistributionSettings.enabled) return true;
   const participants = players.filter(p => p.userRole === "player");
@@ -171,7 +304,6 @@ function distributeRolesForNewRound(): boolean {
   }
   if (specialRoleIds.length > participants.length) return false;
 
-  // Fisher-Yates, serverseitig mit kryptografisch sicherem Zufall.
   for (let i = specialRoleIds.length - 1; i > 0; i--) {
     const j = randomInt(i + 1);
     [specialRoleIds[i], specialRoleIds[j]] = [specialRoleIds[j], specialRoleIds[i]];
@@ -182,8 +314,6 @@ function distributeRolesForNewRound(): boolean {
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
 
-  // Alte Rollen auch von zurzeit abgemeldeten Konten entfernen.
-  // Die uebrigen Teilnehmer erhalten null (= Dorfbewohner).
   gameRolesByAccount.clear();
   for (const player of participants) player.gameRole = null;
   shuffled.forEach((player, index) => {
@@ -199,7 +329,9 @@ function distributeRolesForNewRound(): boolean {
 function controllerPhaseStatus() {
   return {
     ...phaseManager.getStatus(),
-    nightSteps: phaseManager.getNightTimeline(players).map((entry) => ({
+    nightSteps: phaseManager.getNightTimeline(
+      roundParticipantKeys.size ? roundRolePlayers() : players,
+    ).map((entry) => ({
       id: entry.id,
       label: entry.id === "werewolves" ? "Werwölfe" :
         entry.roleIds.map((id) => roleManager.getRole(id)?.config.name ?? id).join(" / "),
@@ -218,8 +350,6 @@ function broadcastControllerPhaseStatus(): void {
 }
 
 
-// Teilnehmer der laufenden Runde bleiben auch bei Verbindungsabbruch dabei.
-// Accounts, die nie an der Runde teilgenommen haben, zaehlen nicht mit.
 const roundParticipantKeys = new Set<string>();
 let startedWithWerewolves = false;
 let gameResult: WinDecision | null = null;
@@ -276,14 +406,11 @@ function finishIfWinner(checkpoint: WinCheckpoint): boolean {
   return true;
 }
 
-// Nur zur Laufzeit gespeicherte Einstellungen (keine Datenbank).
 const sceneSettings = {
   gmRoleFramesPermanent: false, // GM sieht wahre Rollen nachts immer; tagsüber optional
   blockNightOutsideOwnPhase: false,
 };
 
-// Der Server sagt jedem Spieler nur, ob seine Perspektive gesperrt ist.
-// Aktiver Rollenname oder fremde Geheimrollen werden dabei NICHT übertragen.
 function sendSceneSettingsTo(viewer: Player): void {
   const isNight = phaseManager.currentPhase === "night";
   const canSeeNightCameras = viewer.userRole !== "player" || (
@@ -331,7 +458,6 @@ function broadcastAccountList(): void {
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
-  // Die Kontoliste darf nur der eingeloggte Gamemaster erhalten.
   for (const player of players) {
     if (player.userRole === "gamemaster") {
       io.to(player.id).emit("account:list", accounts);
@@ -339,8 +465,6 @@ function broadcastAccountList(): void {
   }
 }
 
-// Nur der Gamemaster sieht die gesamte Zuordnung. Jeder andere Client
-// erhaelt ausschliesslich die eigene Rolle; Werwoelfe kennen ihr Team.
 function syncGameRoles(): void {
   const available = roleManager.getPublicCatalog();
   const byId = new Map(available.map((entry) => [entry.id, entry]));
@@ -366,15 +490,22 @@ function syncGameRoles(): void {
   }
 }
 
+function dayVoteWeight(voterKey: string): number {
+  return roleManager.getDayVoteWeight({
+    id: voterKey,
+    userRole: "player",
+    gameRole: gameRolesByAccount.get(voterKey) ?? null,
+    isAlive: roundParticipantKeys.has(voterKey) && (aliveByAccount.get(voterKey) ?? true),
+  });
+}
+
 function syncDayVotes(): void {
   const eligible = players.filter(p => p.userRole === "player" && p.isAlive);
-  // Bereits abgegebene Stimmen bleiben nach einem Reconnect erhalten.
   const voterCount = Math.max(eligible.length, dayVotes.voteCount);
   for (const receiver of players) {
-    // Bei offener Wahl sieht NUR der Gamemaster Stimmenzahlen.
-    // Ergebnisse nicht lediglich im Client verstecken!
     const view = dayVotes.getSharedStatus(
       voterCount, playerAccounts, receiver.userRole === "gamemaster" || receiver.userRole === "storyteller",
+      dayVoteWeight,
     );
     io.to(receiver.id).emit("day-vote:status", {
       ...view,
@@ -388,7 +519,7 @@ function syncDayVotes(): void {
 /** Schliessen = Ergebnis veroeffentlichen und eindeutigen Sieger eliminieren. */
 function closeAndRevealDayVote(): void {
   if (phaseManager.currentPhase !== "day" || dayVotes.currentState !== "open") return;
-  dayVotes.close();
+  dayVotes.close(playerAccounts, dayVoteWeight);
   const winnerKey = dayVotes.getUniqueWinner(playerAccounts);
   if (winnerKey !== null) {
     aliveByAccount.set(winnerKey, false);
@@ -397,7 +528,6 @@ function closeAndRevealDayVote(): void {
     );
     if (target) {
       updatePlayer(target.id, { isAlive: false });
-      // Optionaler, austauschbarer Animations-Hook fuer den Client.
       broadcastPlayers();
       for (const viewer of players) {
         io.to(viewer.id).emit("day-vote:eliminated", { playerId: target.id, reason: "day-vote" });
@@ -429,11 +559,9 @@ function broadcastPlayers(): void {
   syncDayVotes();
   syncSceneSettings();
   syncDistributionStatus();
+  syncRoleStates();
 }
 
-// Zentrale Hilfsfunktion für serverseitige Änderungen an Spielern.
-// Bewusst KEIN allgemeines Socket-Event: Clients dürfen nicht selbst
-// ihre Rolle, Geheimrolle oder andere Spielwerte ändern.
 type PlayerUpdate = Partial<
   Pick<Player, "userRole" | "gameRole" | "isAlive" | "color">
 >;
@@ -446,16 +574,14 @@ function updatePlayer(
   if (!player) return undefined;
 
   const previousUserRole = player.userRole;
+  const died = player.isAlive && changes.isAlive === false;
   Object.assign(player, changes);
+  if (died) roleManager.notifyDeath(roleActionPlayer(player));
 
-  // Nur die öffentliche Berechtigungsrolle wird dem Betroffenen gemeldet.
-  // Die geheime gameRole wird hier ausdrücklich NICHT versendet.
   if (previousUserRole !== player.userRole) {
     io.to(player.id).emit("role:changed", player.userRole);
   }
 
-  // broadcastPlayers() erfolgt nach allen zusammengehörigen Änderungen
-  // im jeweiligen Handler, damit nicht mehrfach gesendet wird.
   return player;
 }
 
@@ -468,7 +594,6 @@ function disconnectPlayerAccount(name: string, reason: string): boolean {
     activeSocket.emit("auth:kicked", reason);
     activeSocket.disconnect(true);
   } else {
-    // Falls die Verbindung gerade verschwunden ist: veralteten Eintrag löschen.
     const index = players.findIndex((entry) => entry.id === player.id);
     if (index !== -1) {
       players.splice(index, 1);
@@ -499,10 +624,9 @@ app.get("/", (_req, res) => {
   res.send("Werwolf Engine Server läuft 🐺");
 });
 
-// Gemeinsamer, serverseitiger Phasenwechsel; die Rollen selbst bleiben privat.
 function setGamePhase(nextPhase: GamePhase): void {
   const previousPhase = phaseManager.currentPhase;
-  // Nur EINMAL pro neuer Runde. Bei Tag/Nacht-Wechseln keine Neuziehung!
+  if (previousPhase === "night" && nextPhase === "day" && finishNight()) return;
   if ((nextPhase === "night" || nextPhase === "day") &&
       (previousPhase === "preparation" || previousPhase === "lobby") &&
       phaseManager.getStatus().round === 0) {
@@ -513,14 +637,16 @@ function setGamePhase(nextPhase: GamePhase): void {
       return;
     }
   }
+  if (previousPhase === "day" && nextPhase === "night") {
+    applyRoleEffects(roleManager.runEvent("onDayEnd", roundRolePlayers(), phaseManager.getStatus().round));
+  }
   if (nextPhase === "lobby") {
+    nightState.reset();
     cancelAutomaticRestart();
     gameResult = null;
     roundParticipantKeys.clear();
     startedWithWerewolves = false;
   }
-  // In der ersten Nacht legen wir den festen Teilnehmerkreis fest.
-  // Spaetere Reconnects aendern diese Menge nicht.
   if (nextPhase === "night" && phaseManager.getStatus().round === 0) {
     roundParticipantKeys.clear();
     for (const p of players) {
@@ -534,10 +660,25 @@ function setGamePhase(nextPhase: GamePhase): void {
     cancelAutomaticRestart();
     gameResult = null;
   }
-  const status = phaseManager.setPhase(nextPhase, players);
+  const status = phaseManager.setPhase(nextPhase,
+    roundParticipantKeys.size ? roundRolePlayers() : players);
   if (previousPhase !== status.phase) {
-    // Finales Vote-Ergebnis auf dem Finished-Screen sichtbar lassen.
+    if (status.phase === "lobby") {
+      roleManager.resetGame();
+    } else if (status.phase === "night") {
+      nightState.reset();
+      roleManager.resetRoleActions();
+    } else {
+      roleManager.resetConfirmations();
+    }
+    if (status.phase === "finished" || status.phase === "preparation") nightState.reset();
     if (status.phase !== "finished") dayVotes.reset();
+    if (status.phase === "night") {
+      nightState.record(roleManager.runEvent("onNightStart", roundRolePlayers(), status.round, nightState));
+    }
+    if (status.phase === "day") {
+      applyRoleEffects(roleManager.runEvent("onDayStart", roundRolePlayers(), status.round));
+    }
     if (status.phase === "lobby") {
       aliveByAccount.clear();
       for (const p of players) p.isAlive = true;
@@ -549,16 +690,14 @@ function setGamePhase(nextPhase: GamePhase): void {
   syncSceneSettings();
   for (const recipient of players) io.to(recipient.id).emit("phaseChanged", status.phase);
   broadcastControllerPhaseStatus();
+  sendRoleProgress();
+  syncRoleStates();
 }
 
 io.on("connection", (socket) => {
   console.log("Client verbunden:", socket.id);
 
-  // =====================================================
-  // GAMEMASTER-LOGIN
-  // =====================================================
-  // TODO: Zusätzlich ein übergreifendes Rate-Limit implementieren.
-  // Diese Begrenzung gilt bisher nur pro Socket-Verbindung.
+  // Gamemaster-Login
   let failedAdminAttempts = 0;
 
   socket.on("admin:login", (password: unknown) => {
@@ -619,9 +758,7 @@ io.on("connection", (socket) => {
     console.log("Gamemaster erfolgreich angemeldet.");
   });
 
-  // =====================================================
-  // GAMEMASTER – SPIELERKONTEN VERWALTEN
-  // =====================================================
+  // Spielerkonten
 
   socket.on("account:list:request", () => {
     if (!isAdmin(socket.id)) {
@@ -663,7 +800,6 @@ io.on("connection", (socket) => {
     const { password, passwordHash, salt } = makePasswordCredentials();
     playerAccounts.set(key, { name, passwordHash, salt });
 
-    // Klartextpasswort nur einmal an diesen Gamemaster senden.
     socket.emit("account:created", { name, password });
     broadcastAccountList();
     console.log(`Spielerkonto erstellt: ${name}`);
@@ -686,7 +822,6 @@ io.on("connection", (socket) => {
     account.salt = salt;
     loginAttempts.delete(accountKey(account.name));
 
-    // Bereits angemeldete Sitzung ungültig machen.
     disconnectPlayerAccount(account.name, "Dein Passwort wurde zurückgesetzt.");
 
     socket.emit("account:reset:done", { name: account.name, password });
@@ -740,10 +875,7 @@ io.on("connection", (socket) => {
     console.log(`Spielerkonto gelöscht: ${account.name}`);
   });
 
-  // =====================================================
-  // SPIELER-LOGIN MIT PERSÖNLICHEM PASSWORT
-  // =====================================================
-  // Kein passwortloser 'join'-Handler mehr.
+  // Spieler-Login
   socket.on("player:login", (input: unknown) => {
     if (players.some((player) => player.id === socket.id)) {
       socket.emit("auth:error", "Bereits angemeldet.");
@@ -835,26 +967,20 @@ io.on("connection", (socket) => {
     sendGameResultTo(newPlayer);
     console.log(`${account.name} hat sich angemeldet.`);
 
-    // Kein zusätzlicher Freigabe-Warteraum vorgesehen: Kontrolle durch
-    // persönliche Spielerpasswörter und den Gamemaster vor dem Stream.
   });
 
-  // =====================================================
-  // GAMEMASTER – ERZÄHLER ERNENNEN / ABSETZEN
-  // =====================================================
+  // Erzähler verwalten
   socket.on("storyteller:set", (targetId: unknown) => {
     if (!isAdmin(socket.id)) {
       socket.emit("storyteller:error", "Keine Berechtigung.");
       return;
     }
 
-    // null setzt den Erzähler ab, eine Socket-ID ernennt einen Spieler.
     if (targetId !== null && typeof targetId !== "string") {
       socket.emit("storyteller:error", "Ungültiger Spieler.");
       return;
     }
 
-    // Nie den Gamemaster zur Zielperson machen.
     const target =
       targetId === null
         ? undefined
@@ -863,23 +989,18 @@ io.on("connection", (socket) => {
               player.id === targetId && player.userRole !== "gamemaster"
           );
 
-    // Erst validieren, danach Rollen verändern.
     if (targetId !== null && !target) {
       socket.emit("storyteller:error", "Spieler nicht gefunden.");
       return;
     }
 
-    // Es gibt maximal einen Erzähler. Bei einem Wechsel wird der
-    // vorherige Erzähler wieder zu einem normalen Spieler.
     for (const player of players) {
       if (player.userRole === "storyteller" && player.id !== targetId) {
         updatePlayer(player.id, { userRole: "player" });
       }
     }
 
-    // Der neue Erzähler bleibt Inhaber seines vorhandenen Spielerkontos.
     if (target && target.userRole !== "storyteller") {
-      // Erzähler besitzt keine geheime Spielerrolle.
       gameRolesByAccount.delete(accountKey(target.name));
       dayVotes.removeAccount(accountKey(target.name));
       updatePlayer(target.id, { userRole: "storyteller", gameRole: null });
@@ -889,14 +1010,11 @@ io.on("connection", (socket) => {
       console.log("Erzählerberechtigung entfernt.");
     }
 
-    // Geheimrollen werden weiterhin nicht an alle verteilt.
     broadcastPlayers();
+    sendRoleProgress();
     socket.emit("storyteller:updated");
   });
-  // =====================================================
-  // SPIELROLLEN – MANUELLE VERGABE (NUR GAMEMASTER)
-  // =====================================================
-  // Gemeinsame Auto-Rollen-Einstellung: Gamemaster UND Erzaehler.
+  // Rollenvergabe
   socket.on("role-distribution:request", () => {
     const controller = participant(socket.id);
     if (isController(controller)) sendDistributionStatus(controller);
@@ -922,7 +1040,6 @@ io.on("connection", (socket) => {
     syncDistributionStatus();
   });
 
-  // Admin-Oberflaeche kann nach dem Mounten die aktuellen Daten erneut laden.
   socket.on("game-role:request", () => {
     if (!isAdmin(socket.id)) return;
     socket.emit("role:catalog", roleManager.getPublicCatalog());
@@ -959,12 +1076,12 @@ io.on("connection", (socket) => {
     else gameRolesByAccount.set(accountKey(target.name), roleId as string);
     updatePlayer(target.id, { gameRole: roleId as string | null });
     syncGameRoles();
-    broadcastControllerPhaseStatus(); // Vorschau reagiert sofort auf neue Rollen.
+    syncRoleStates();
+    broadcastControllerPhaseStatus();
+    sendRoleProgress();
     socket.emit("game-role:updated");
   });
 
-  // Der Gamemaster kann den Lebensstatus jederzeit manuell korrigieren.
-  // Der Zustand bleibt über Reconnects erhalten.
   socket.on("game-role:alive", (input: unknown) => {
     if (!isAdmin(socket.id)) return;
     if (!input || typeof input !== "object") return;
@@ -977,10 +1094,10 @@ io.on("connection", (socket) => {
     if (!isAlive) dayVotes.removeAccount(accountKey(target.name));
     broadcastPlayers();
     broadcastControllerPhaseStatus();
+    sendRoleProgress();
     socket.emit("game-role:updated");
   });
 
-  // Einstellungen sind ausschließlich vom Gamemaster änderbar.
   socket.on("scene:viewer-settings:request", () => {
     const viewer = participant(socket.id);
     if (viewer) sendSceneSettingsTo(viewer);
@@ -1020,12 +1137,8 @@ io.on("connection", (socket) => {
     syncSceneSettings();
   });
 
-  // =====================================================
-// SPIELPHASEN-STEUERUNG
-// =====================================================
+  // Spielphasen
 
-  // Bestehende direkte Phasensteuerung ist nur fuer den Gamemaster.
-  // Der Erzaehler benutzt ausschliesslich "phase:advance".
   socket.on("phase:set", (nextPhase: unknown) => {
     if (!isAdmin(socket.id)) {
       socket.emit("phase:error", "Nur der Gamemaster darf die Phase direkt setzen.");
@@ -1036,20 +1149,16 @@ io.on("connection", (socket) => {
       socket.emit("phase:error", "Ungueltige Spielphase.");
       return;
     }
-    // Auch bei direktem Wechsel aus der Nacht dieselbe Siegpruefung.
-    if (nextPhase === "day" && phaseManager.currentPhase === "night" && finishIfWinner("night-end")) return;
     setGamePhase(nextPhase as GamePhase);
   });
 
-  // Die separate Fernbedienung darf sich den Zustand jederzeit anfordern.
   socket.on("phase:control:request", () => {
     const controller = participant(socket.id);
     if (controller?.userRole !== "storyteller" && controller?.userRole !== "gamemaster") return;
     sendControllerPhaseStatus(socket.id);
+    sendRoleProgress();
   });
 
-  // Ein einziger "Weiter"-Knopf fuer Erzaehler und Gamemaster.
-  // Die Abstimmung und Nachtabschnitte wechseln NICHT automatisch.
   socket.on("phase:advance", () => {
     const controller = participant(socket.id);
     if (controller?.userRole !== "gamemaster" && controller?.userRole !== "storyteller") return;
@@ -1058,47 +1167,115 @@ io.on("connection", (socket) => {
     if (phase === "lobby") return setGamePhase("preparation");
     if (phase === "preparation") return setGamePhase("night");
     if (phase === "night") {
-      // Letzter Abschnitt abgeschlossen (oder es gibt keinen): Tag beginnt.
+      completeCurrentRoleStep();
       const next = phaseManager.nextStep();
+      roleManager.resetConfirmations();
       if (next.step === null) {
-        if (!finishIfWinner("night-end")) setGamePhase("day");
+        setGamePhase("day");
         return;
       }
       broadcastControllerPhaseStatus();
       syncSceneSettings();
+      sendRoleProgress();
+      syncRoleStates();
       return;
     }
     if (phase === "day") {
       if (dayVotes.currentState === "idle") {
-        // 1. Diskussion -> 2. geheime Wahl
         dayVotes.start();
         syncDayVotes();
       } else if (dayVotes.currentState === "open") {
-        // 2. Wahl -> 3. Ergebnis (+ ggf. Tod / Animations-Event)
         closeAndRevealDayVote();
       } else if (dayVotes.currentState === "closed") {
-        // 3. Ergebnis -> Nacht. Bei Gleichstand vorher optional wiederholen.
         setGamePhase("night");
       }
     }
-    // "finished" wird spaeter ueber eine serverseitige Siegbedingung erreicht.
   });
 
-  // Legacy-Aufruf bleibt fuer vorhandene Clients moeglich, kontrolliert aber
-  // ausschliesslich den Rollenabschnitt, nicht den gesamten Spielablauf.
   socket.on("phase:step:next", () => {
     const controller = participant(socket.id);
     if (controller?.userRole !== "gamemaster" && controller?.userRole !== "storyteller") return;
+    completeCurrentRoleStep();
     phaseManager.nextStep();
+    roleManager.resetConfirmations();
     broadcastControllerPhaseStatus();
     syncSceneSettings();
+    sendRoleProgress();
+    syncRoleStates();
   });
 
-  // =====================================================
-  // DORFABSTIMMUNG: SERVER VERWALTET STIMMEN, ERZAEHLER ENTSCHEIDET
-  // =====================================================
-  // Alle Aktionen werden auf dem Server geprueft; Stimmen werden pro
-  // Konto, nicht pro Socket-ID gespeichert (Reconnect-sicher).
+  // Eigene Rollenaktion abrufen.
+  socket.on("role:state:request", () => {
+    const actor = participant(socket.id);
+    if (actor) sendRoleState(actor);
+  });
+
+  // Einheitliche Auswahl für alle Rollen.
+  socket.on("role:select", (targetId: unknown) => {
+    const actor = participant(socket.id);
+    const phase = currentRoleActionPhase();
+    if (!actor || !phase || typeof targetId !== "string" || targetId.length > 128) return;
+    const target = participant(targetId);
+    if (!target) return;
+
+    const result = roleManager.select(
+      roleActionPlayer(actor),
+      roleActionPlayer(target),
+      phase,
+    );
+    if (!result.ok) {
+      socket.emit("role:error", result.reason);
+      return;
+    }
+
+    const ownSelection = actor.gameRole
+      ? roleManager.getRole(actor.gameRole)?.actions.getSelection?.(accountKey(actor.name)) ?? null
+      : null;
+    const targetOnline = ownSelection === null ? null : players.find(p =>
+      p.userRole === "player" && accountKey(p.name) === ownSelection
+    );
+    socket.emit("role:selection", { targetId: targetOnline?.id ?? null });
+    sendRoleState(actor);
+  });
+
+  // Auswahl sperren und Fortschritt nur an Spielleitung senden.
+  socket.on("role:confirm", () => {
+    const actor = participant(socket.id);
+    const phase = currentRoleActionPhase();
+    if (!actor || !phase) return;
+
+    const result = roleManager.confirm(roleActionPlayer(actor), phase);
+    if (!result.ok) {
+      socket.emit("role:error", result.reason);
+      return;
+    }
+
+    socket.emit("role:confirmed");
+    sendRoleState(actor);
+    sendRoleProgress();
+  });
+
+  // Zentraler Rollenbutton
+  socket.on("role:action", (buttonId: unknown) => {
+    const actor = participant(socket.id);
+    const phase = currentRoleActionPhase();
+    if (!actor || !phase || typeof buttonId !== "string" || buttonId.length > 64) return;
+    const result = roleManager.triggerButton(roleActionPlayer(actor), phase, buttonId, nightState);
+    if (!result.ok) {
+      socket.emit("role:error", result.reason);
+      return;
+    }
+    if (result.effects?.length) {
+      if (phase.period === "night") nightState.record(result.effects);
+      else applyRoleEffects(result.effects);
+    }
+    if (phase.period === "day") syncDayVotes();
+    socket.emit("role:action:success", { buttonId });
+    sendRoleState(actor);
+    sendRoleProgress();
+  });
+
+  // Dorfabstimmung
   socket.on("day-vote:request", () => {
     if (!participant(socket.id)) return;
     syncDayVotes();
@@ -1139,7 +1316,6 @@ io.on("connection", (socket) => {
     closeAndRevealDayVote();
   });
 
-  // Nur bei Gleichstand (oder null Stimmen) ermoeglichen: zurueck zu Phase 2.
   socket.on("day-vote:repeat", () => {
     const actor = participant(socket.id);
     if (!actor || (actor.userRole !== "storyteller" && actor.userRole !== "gamemaster")) return;
@@ -1147,8 +1323,6 @@ io.on("connection", (socket) => {
     syncDayVotes();
   });
 
-  // Alte Clients duerfen den bereits veroeffentlichten Sieger nicht
-  // ein zweites Mal eliminieren. Der Tod geschieht beim Schliessen.
   socket.on("day-vote:apply", () => {
     if (participant(socket.id)?.userRole === "gamemaster" ||
         participant(socket.id)?.userRole === "storyteller") {
@@ -1156,9 +1330,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // =====================================================
-  // KAMERA-FREIGABEN: GAMEMASTER PRUEFT, DANN VERTEILEN
-  // =====================================================
+  // Kamerafreigaben
 
   socket.on("camera:ready", () => {
     const user = participant(socket.id);
@@ -1167,8 +1339,6 @@ io.on("connection", (socket) => {
       socket.emit("camera:error", "Kamera nach PANIC gesperrt. Gamemaster muss die erneute Einrichtung erlauben.");
       return;
     }
-    // Eine laufende Pruefung/Freigabe kann nicht heimlich erneut gestartet werden.
-    // Zum Wechseln muss die alte Kamera zuerst ausgeschaltet werden.
     if (cameraEntries.has(socket.id)) {
       socket.emit("camera:error", "Kamera bereits angeboten. Erst ausschalten und neu einrichten.");
       return;
@@ -1197,7 +1367,6 @@ io.on("connection", (socket) => {
     if (!entry || (entry.status !== "ready" && entry.status !== "approved")) return;
     entry.reviewing = true;
     entry.previewSeen = false;
-    // Nur dem Gamemaster wird die Kameraverbindung zur privaten Pruefung angeboten.
     requestCameraViewer(cameraId, socket.id);
     broadcastCameras();
   });
@@ -1216,8 +1385,6 @@ io.on("connection", (socket) => {
     if (!entry) return;
     entry.reviewing = false;
     entry.previewSeen = false;
-    // Freigegebene Kameras bleiben in der Gamemaster-Spielansicht sichtbar.
-    // Nur die exklusive Vorabkontrolle einer noch nicht freigegebenen Kamera endet.
     if (entry.status !== "approved") {
       io.to(cameraId).emit("camera:viewer:removed", { viewerId: socket.id });
       socket.emit("camera:viewer:stop", { cameraId });
@@ -1263,8 +1430,6 @@ io.on("connection", (socket) => {
     broadcastCameras();
   });
 
-  // Signalisiert ausschliesslich durch den Server erlaubte Kamerapaare.
-  // Kamerabesitzer startet immer das Offer, Zuschauer antwortet.
   socket.on("camera:signal", (input: unknown) => {
     if (!input || typeof input !== "object") return;
     const { cameraId, targetId, epoch, signal } = input as {
@@ -1301,17 +1466,11 @@ io.on("connection", (socket) => {
     io.to(targetId).emit("camera:signal", { senderId: socket.id, cameraId, epoch, signal });
   });
 
-  // Alter passwortloser Kamera-Techniktest (`webrtc:signal`) ist ABSICHTLICH
-  // entfernt. Sonst koennten alte Clients die neue Kamera-Freigabe umgehen.
-  // Ausschliesslich `camera:signal` wird mit der Server-Freigabe vermittelt.
 
-  // =====================================================
-  // VERBINDUNG TRENNEN
-  // =====================================================
+  // Verbindung trennen
   socket.on("disconnect", () => {
     const disconnectedUser = participant(socket.id);
     if (disconnectedUser?.userRole === "gamemaster") {
-      // Fail-closed: Ohne Gamemaster-Pruefung keine automatische Wiederfreigabe.
       for (const [cameraId, entry] of cameraEntries) {
         if (entry.status !== "blocked") revokeCamera(cameraId, true);
       }
@@ -1323,7 +1482,6 @@ io.on("connection", (socket) => {
 
     const [leavingPlayer] = players.splice(index, 1);
     console.log("Client getrennt:", leavingPlayer.name);
-    // Keine automatische Gamemaster-Übergabe.
     broadcastPlayers();
   });
 });

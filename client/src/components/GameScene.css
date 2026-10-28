@@ -83,3 +83,15 @@
     padding: 12px;
   }
 }
+
+.game-scene__role-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.game-scene__role-message {
+  margin: 0;
+  text-align: center;
+}

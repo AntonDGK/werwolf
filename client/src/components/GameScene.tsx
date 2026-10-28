@@ -8,6 +8,16 @@ import CameraLayer from "./CameraLayer";
 import RoleNotebook from "./RoleNotebook";
 import type { VoteStatus } from "./DayVotePanel";
 
+type RoleActionState = {
+  active: boolean;
+  requiresConfirmation: boolean;
+  confirmed: boolean;
+  hasSelection: boolean;
+  selectedTargetId: string | null;
+  targetIds: string[];
+  buttons: { id: string; label: string; disabled: boolean }[];
+};
+
 type GameSceneProps = {
   phase: GamePhase;
   name: string;
@@ -19,13 +29,6 @@ type GameSceneProps = {
   onOpenPhaseRemote?: () => void;
 };
 
-const phaseLabels: Record<GamePhase, string> = {
-  lobby: "Lobby",
-  preparation: "Vorbereitung",
-  night: "Nacht",
-  day: "Tag",
-  finished: "Spiel beendet",
-};
 
 export default function GameScene({
   phase,
@@ -46,6 +49,48 @@ export default function GameScene({
   const [revealGamemasterRoles, setRevealGamemasterRoles] = useState(false);
   const [maskNightCameras, setMaskNightCameras] = useState(false);
   const [gamemasterAssignments, setGamemasterAssignments] = useState<Record<string, string | null>>({});
+  const [roleAction, setRoleAction] = useState<RoleActionState | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
+  const [roleAnnouncement, setRoleAnnouncement] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onState = (value: RoleActionState) => {
+      setRoleAction(value);
+      setRoleError(null);
+    };
+    const onError = (message: string) => setRoleError(message);
+    const onRevealed = (event: { name: string; roleName: string }) =>
+      setRoleAnnouncement(`${event.name} ist ${event.roleName}.`);
+    const onRoleEliminated = (event: { name: string }) =>
+      setRoleAnnouncement(`${event.name} wurde eliminiert.`);
+    const request = () => socket.emit("role:state:request");
+    socket.on("role:state", onState);
+    socket.on("role:error", onError);
+    socket.on("role:revealed", onRevealed);
+    socket.on("role:eliminated", onRoleEliminated);
+    socket.on("connect", request);
+    request();
+    return () => {
+      socket.off("role:state", onState);
+      socket.off("role:error", onError);
+      socket.off("role:revealed", onRevealed);
+      socket.off("role:eliminated", onRoleEliminated);
+      socket.off("connect", request);
+    };
+  }, []);
+
+  useEffect(() => {
+    setRoleAction(null);
+    setRoleError(null);
+    socket.emit("role:state:request");
+  }, [phase, userRole, privateRole?.roleId]);
+
+  useEffect(() => {
+    if (phase === "night" || phase === "lobby" || phase === "preparation") {
+      setRoleAnnouncement(null);
+    }
+  }, [phase]);
+
   useEffect(() => {
     const onResult = (value: typeof gameResult) => setGameResult(value);
     const requestResult = () => socket.emit("game:result:request");
@@ -108,9 +153,20 @@ export default function GameScene({
     <section className="game-scene" data-phase={phase}>
       <header className="game-scene__header">
         <h1>🐺 Werwolf Engine</h1>
-        <span>{phaseLabels[phase]}</span>
+        {userRole === "player" && roleAction?.active && roleAction.buttons?.length > 0 && (
+          <div className="game-scene__role-buttons">
+            {roleAction.buttons.map(button => (
+              <button key={button.id} type="button" disabled={button.disabled}
+                onClick={() => socket.emit("role:action", button.id)}>
+                {button.label}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
+      {roleError && <p className="game-scene__role-message" role="alert">{roleError}</p>}
+      {roleAnnouncement && <p className="game-scene__role-message" role="status">{roleAnnouncement}</p>}
       <div className="game-scene__content">
 
         {phase === "finished" && gameResult && (
@@ -124,6 +180,7 @@ export default function GameScene({
         <CameraLayer players={players} viewerRole={userRole} phase={phase}
           privateRoleId={privateRole?.roleId} teammateIds={teammates.map(p => p.id)}
           vote={vote} elimination={elimination}
+          roleAction={phase === "night" && userRole === "player" ? roleAction : null}
           revealGamemasterRoles={revealGamemasterRoles}
           maskNightCameras={maskNightCameras}
           gamemasterAssignments={gamemasterAssignments} />

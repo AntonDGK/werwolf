@@ -1,12 +1,15 @@
 import { useState } from "react";
+import bookIcon from "../assets/icons/book-icon.png";
 import "./RoleNotebook.css";
 
-/** Vorerst absichtlich leer: Das Rollenlexikon wird später serverseitig gespeist. */
+// Rollenlexikon folgt.
 export default function RoleNotebook() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button className="role-notebook__trigger" type="button" aria-label="Rollen-Notizbuch öffnen" onClick={() => setOpen(true)}>📖 Rollen</button>
+      <button className="role-notebook__trigger" type="button" aria-label="Rollen-Notizbuch öffnen" title="Rollen-Notizbuch öffnen" onClick={() => setOpen(true)}>
+        <img src={bookIcon} alt="" draggable={false} />
+      </button>
       {open && (
         <div className="role-notebook__backdrop" onClick={() => setOpen(false)}>
           <section className="role-notebook__dialog" role="dialog" aria-modal="true" aria-labelledby="role-notebook-title" onClick={(event) => event.stopPropagation()}>

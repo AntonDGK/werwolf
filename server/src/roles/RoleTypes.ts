@@ -1,16 +1,14 @@
-/** Stable role identifiers, checked against the registry at runtime. */
 export type RoleId = string;
 export type AbilityFrequency = "every-night" | "every-day" | "first-night" | "once";
+export type RoleActionPeriod = "night" | "day";
 
 export type RoleTiming = {
-  /** Without enabled there is no action at this time of day. */
   enabled: boolean;
-  /** If true, the phase manager schedules a separate step. */
   separatePhase: boolean;
   order?: number;
   frequency?: AbilityFrequency;
-  /** Several players sharing the same phaseGroup act within one step. */
   phaseGroup?: string;
+  canSeeWerewolfTarget?: boolean;
 };
 
 export type RoleTargeting = {
@@ -21,36 +19,119 @@ export type RoleTargeting = {
 
 export type RoleCameraLayout = {
   night?: {
-    active?: {
-      target: "self" | "same-role";
-      mode: "center";
-    };
+    active?:
+      | {
+          target: "self" | "same-role";
+          mode: "center";
+        }
+      | {
+          enabled: boolean;
+          target: "self" | "same-role";
+          layout: "dynamic";
+          area: {
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+          };
+        };
   };
 };
 
+export type RoleSelection = {
+  requiresConfirmation?: boolean;
+};
+
+export type RoleButton = {
+  id: string;
+  label: string;
+  kind?: "action" | "confirm";
+  confirmedLabel?: string;
+  usedLabel?: string;
+  once?: boolean;
+  requiresSelection?: boolean;
+};
+
+export type RoleButtonState = {
+  id: string;
+  label: string;
+  disabled: boolean;
+};
+
 export type RoleDefinition = {
-  targeting?: RoleTargeting;
-  cameraLayout?: RoleCameraLayout;
   id: RoleId;
   name: string;
   description: string;
-  /** File suffix for frame-<name>.png in client/src/assets/frames. */
   frame: string;
   night?: RoleTiming;
   day?: RoleTiming;
+  buttons?: {
+    night?: readonly RoleButton[];
+    day?: readonly RoleButton[];
+  };
+  selection?: RoleSelection;
+  targeting?: RoleTargeting;
+  cameraLayout?: RoleCameraLayout;
 };
+
+export type RoleActionPlayer = {
+  id: string;
+  userRole: "player" | "storyteller" | "gamemaster";
+  gameRole: RoleId | null;
+  isAlive: boolean;
+};
+
+export type RoleActionPhase = {
+  period: RoleActionPeriod;
+  stepId: string | null;
+  round: number;
+};
+
+export type RoleEffect =
+  | { type: "eliminate"; targetId: string; reason: string }
+  | { type: "protect"; targetId: string }
+  | { type: "reveal"; targetId: string };
+
+export type RoleNightInfo = Readonly<{ werewolfTargetId: string | null }>;
 
 export type RoleActionContext = {
   actorId: string;
+  actionId: string;
   targetId?: string;
   round: number;
+  night?: RoleNightInfo;
 };
-export type RoleActionResult = { ok: true } | { ok: false; reason: string };
 
-/** These hooks are reserved; nobody can invoke them over a socket yet. */
+export type RoleSelectContext = {
+  actorId: string;
+  targetId: string;
+  round: number;
+};
+
+export type RoleEventContext = {
+  round: number;
+  players: readonly RoleActionPlayer[];
+  confirmedActorIds: ReadonlySet<string>;
+  night?: RoleNightInfo;
+};
+
+export type RoleActionResult =
+  | { ok: true; effects?: readonly RoleEffect[] }
+  | { ok: false; reason: string };
+
 export type RoleActions = {
+  select?: (context: RoleSelectContext) => RoleActionResult;
+  getSelection?: (actorId: string) => string | null;
+  reset?: () => void;
+  onNightStart?: (context: RoleEventContext) => readonly RoleEffect[];
   onNightAction?: (context: RoleActionContext) => RoleActionResult;
+  onNightStepEnd?: (context: RoleEventContext) => readonly RoleEffect[];
   onDayAction?: (context: RoleActionContext) => RoleActionResult;
+  onDayEnd?: (context: RoleEventContext) => readonly RoleEffect[];
+  onNightEnd?: (context: RoleEventContext) => readonly RoleEffect[];
+  onDayStart?: (context: RoleEventContext) => readonly RoleEffect[];
+  getDayVoteWeight?: (actorId: string) => number;
+  onGameReset?: () => void;
   onDeath?: (playerId: string) => void;
 };
 
