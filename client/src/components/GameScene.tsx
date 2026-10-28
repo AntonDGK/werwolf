@@ -158,7 +158,6 @@ export default function GameScene({
   return (
     <section className="game-scene" data-phase={phase}>
       <header className="game-scene__header">
-        <h1>🐺 Werwolf Engine</h1>
         {userRole === "player" && roleAction?.active && roleAction.buttons?.length > 0 && (
           <div className="game-scene__role-buttons">
             {roleAction.buttons.map(button => (
