@@ -2,7 +2,9 @@ import type { PublicPlayer } from "../types/Player";
 import AccountManager from "./AccountManager";
 import StorytellerManager from "./StorytellerManager";
 import CameraAdminPanel from "./CameraAdminPanel";
+import AdminDayVotePanel from "./AdminDayVotePanel";
 import RoleAssignmentPanel from "./RoleAssignmentPanel";
+import AdminFrameSettings from "./AdminFrameSettings";
 import "./AdminPanel.css";
 import "./AdminPanelReset.css";
 import { socket } from "../socket";
@@ -18,7 +20,9 @@ export default function AdminPanel({ players }: AdminPanelProps) {
         <h2>⚙️ Gamemaster-Einstellungen</h2>
         <p>Hier findest du die zusätzlichen Verwaltungsfunktionen.</p>
 
+        <AdminDayVotePanel />
         <CameraAdminPanel />
+        <AdminFrameSettings />
         <StorytellerManager players={players} />
         <RoleAssignmentPanel players={players} />
         <AccountManager />

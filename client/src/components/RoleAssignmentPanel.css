@@ -26,3 +26,6 @@
   border-radius: 6px;
 }
 .role-assignment__note { color: #b5beca; font-size: 0.9rem; }
+
+.role-assignment__alive { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font-size: 0.95rem; }
+.role-assignment__alive input { accent-color: #d7ac66; width: 18px; height: 18px; }

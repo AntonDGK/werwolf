@@ -1,0 +1,8 @@
+/* Ausschließlich visuelle Nacht-Sperre; das WebRTC-Video bleibt gemountet. */
+.camera-layer__night-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #10151f;
+  pointer-events: none;
+}

@@ -1,0 +1,21 @@
+/* Neues Update: nur Abstimmungs- und Todes-Effekte. Bestehendes Kamera-CSS bleibt unberuehrt. */
+.camera-layer__elimination {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: clamp(24px, 5vw, 58px);
+  pointer-events: none;
+  animation: dayvote-elimination 1200ms ease-out both;
+  background: radial-gradient(circle, rgba(130, 18, 18, .5), transparent 63%);
+}
+@keyframes dayvote-elimination {
+  0% { opacity: 0; transform: scale(.86); }
+  25% { opacity: 1; transform: scale(1.05); }
+  70% { opacity: .65; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .camera-layer__elimination { animation: none; opacity: 0; }
+}

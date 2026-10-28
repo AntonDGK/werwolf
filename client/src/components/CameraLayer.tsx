@@ -6,6 +6,8 @@ import { socket } from "../socket";
 import CameraFrame, { type CameraFrameKind } from "./CameraFrame";
 import villageVoteIcon from "../assets/icons/vote-villager.png";
 import "./CameraLayer.css";
+import "./CameraVoteEffects.css";
+import "./CameraLayerNight.css";
 
 function CameraVideo({ stream }: { stream: MediaStream }) {
   const ref = useRef<HTMLVideoElement | null>(null);
@@ -29,11 +31,15 @@ type Props = {
   privateRoleId?: string | null;
   teammateIds?: string[];
   vote?: VoteView;
+  elimination?: { playerId: string; sequence: number } | null;
   phase?: string;
   viewerRole?: "player" | "storyteller" | "gamemaster";
+  revealGamemasterRoles?: boolean;
+  maskNightCameras?: boolean;
+  gamemasterAssignments?: Record<string, string | null>;
 };
 
-function CameraTile({ player, own, stream, approved, kind, selected, canVote, onVote, voteCount }: {
+function CameraTile({ player, own, stream, approved, kind, selected, canVote, onVote, voteCount, deathEffectSequence, nightMasked }: {
   player: PublicPlayer;
   own: boolean;
   stream: MediaStream | undefined | null;
@@ -43,6 +49,8 @@ function CameraTile({ player, own, stream, approved, kind, selected, canVote, on
   canVote: boolean;
   onVote: () => void;
   voteCount: number;
+  deathEffectSequence?: number;
+  nightMasked: boolean;
 }) {
   const contents: ReactNode = <>
     <div className="camera-layer__picture">
@@ -52,7 +60,12 @@ function CameraTile({ player, own, stream, approved, kind, selected, canVote, on
           <small>{own ? "Deine Kamera ist aus" : approved ? "Verbinde Kamera …" : "Kamera noch nicht freigegeben"}</small>
         </div>
       )}
+      {nightMasked && <div className="camera-layer__night-mask" aria-hidden="true" />}
       <CameraFrame kind={kind} selected={selected} />
+      {deathEffectSequence !== undefined && (
+        // Klares Animations-Slot: spaeter durch Artist-Animation austauschbar.
+        <span key={deathEffectSequence} className="camera-layer__elimination" aria-hidden="true">💀</span>
+      )}
       {voteCount > 0 && (
         <div className="camera-layer__vote-icons" aria-hidden="true">
           {Array.from({ length: Math.min(voteCount, 6) }, (_, index) => (
@@ -62,7 +75,7 @@ function CameraTile({ player, own, stream, approved, kind, selected, canVote, on
         </div>
       )}
     </div>
-    <div className="camera-layer__label">{player.name}{own ? " (Du)" : ""}</div>
+    {/* Kein Namensbalken mehr unter dem Rahmen; Name bleibt im aria-label. */}
   </>;
 
   // Ein konstantes Button-Element verhindert ein Unmount des WebRTC-Videos
@@ -76,7 +89,8 @@ function CameraTile({ player, own, stream, approved, kind, selected, canVote, on
   </button>;
 }
 
-export default function CameraLayer({ players, privateRoleId, teammateIds = [], vote = null, phase, viewerRole }: Props) {
+export default function CameraLayer({ players, privateRoleId, teammateIds = [], vote = null, elimination = null, phase, viewerRole,
+  revealGamemasterRoles = false, maskNightCameras = false, gamemasterAssignments = {} }: Props) {
   // Die WebRTC-Streams bleiben unverändert. Nur die Darstellung erhält PNG-Ebenen.
   const { localStream, remoteStreams, approvedIds } = useCamera();
   const selfId = socket.id;
@@ -89,21 +103,30 @@ export default function CameraLayer({ players, privateRoleId, teammateIds = [], 
         const own = player.id === selfId;
         const stream = own ? localStream : remoteStreams[player.id];
         const approved = approvedIds.includes(player.id);
+        const nightMasked = phase === "night" && maskNightCameras && !own;
         let kind: CameraFrameKind = "default";
-        if (!player.isAlive) kind = "dead";
+        if (nightMasked) kind = "blocked";
+        else if (!player.isAlive) kind = "dead";
         else if (player.userRole === "storyteller") kind = "storyteller";
+        else if (viewerRole === "gamemaster" && revealGamemasterRoles) {
+          // Nur die geheime GM-Zuordnung, niemals PublicPlayer.gameRole.
+          const roleId = gamemasterAssignments[player.id];
+          if (roleId === "werewolf" || roleId === "seer") kind = roleId;
+        }
         else if (!own && !approved) kind = "blocked";
         else if (own && privateRoleId === "werewolf") kind = "werewolf";
         else if (own && privateRoleId === "seer") kind = "seer";
         else if (privateRoleId === "werewolf" && teammateIds.includes(player.id)) kind = "werewolf";
 
         const votable = Boolean(canVote && player.userRole === "player" && player.isAlive);
-        const voteCount = phase === "day" && vote?.state !== "idle"
+        const voteCount = phase === "day" && vote?.state === "closed"
           ? (vote?.results.find(result => result.target === player.name)?.votes ?? 0)
           : 0;
         return <CameraTile key={player.id} player={player} own={own} stream={stream}
           approved={approved} kind={kind} canVote={votable} voteCount={voteCount}
+          deathEffectSequence={elimination?.playerId === player.id ? elimination.sequence : undefined}
           selected={vote?.state === "open" && vote.myVote === player.name}
+          nightMasked={nightMasked}
           onVote={() => socket.emit("day-vote:cast", player.id)} />;
       })}
     </div>

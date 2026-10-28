@@ -65,7 +65,7 @@ export default function RoleAssignmentPanel({ players }: { players: PublicPlayer
       ) : (
         <div className="role-assignment__list">
           {candidates.map((player) => (
-            <label className="role-assignment__entry" key={player.id}>
+            <div className="role-assignment__entry" key={player.id}>
               <span>{player.name}</span>
               <select
                 aria-label={`Spielrolle für ${player.name}`}
@@ -83,7 +83,17 @@ export default function RoleAssignmentPanel({ players }: { players: PublicPlayer
                 <option value="">Nicht zugewiesen</option>
                 {catalog.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
               </select>
-            </label>
+              <label className="role-assignment__alive">
+                <input type="checkbox" checked={player.isAlive}
+                  disabled={!socket.connected}
+                  onChange={event => {
+                    setMessage("");
+                    socket.emit("game-role:alive", { playerId: player.id, isAlive: event.target.checked });
+                  }}
+                  aria-label={`${player.name} ist lebendig`} />
+                {player.isAlive ? "Lebendig" : "Tot"}
+              </label>
+            </div>
           ))}
         </div>
       )}

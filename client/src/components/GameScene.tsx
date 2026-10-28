@@ -28,7 +28,6 @@ const phaseLabels: Record<GamePhase, string> = {
 
 export default function GameScene({
   phase,
-  name,
   userRole,
   players,
   privateRole,
@@ -37,17 +36,59 @@ export default function GameScene({
 }: GameSceneProps) {
   const [vote, setVote] = useState<VoteStatus | null>(null);
   const [voteError, setVoteError] = useState("");
+  const [elimination, setElimination] = useState<{playerId: string; sequence: number} | null>(null);
+  const [revealGamemasterRoles, setRevealGamemasterRoles] = useState(false);
+  const [maskNightCameras, setMaskNightCameras] = useState(false);
+  const [gamemasterAssignments, setGamemasterAssignments] = useState<Record<string, string | null>>({});
   useEffect(() => {
     const onStatus = (next: VoteStatus) => { setVote(next); setVoteError(""); };
     const onError = (message: string) => setVoteError(message);
+    const onEliminated = (event: { playerId?: string }) => {
+      if (typeof event?.playerId !== "string") return;
+      setElimination(previous => ({
+        playerId: event.playerId!,
+        sequence: (previous?.sequence ?? 0) + 1,
+      }));
+    };
     socket.on("day-vote:status", onStatus);
     socket.on("day-vote:error", onError);
+    socket.on("day-vote:eliminated", onEliminated);
     socket.emit("day-vote:request");
     return () => {
       socket.off("day-vote:status", onStatus);
       socket.off("day-vote:error", onError);
+      socket.off("day-vote:eliminated", onEliminated);
     };
   }, []);
+
+  useEffect(() => {
+    const onViewSettings = (data: { revealGamemasterRoles?: boolean; maskNightCameras?: boolean }) => {
+      setRevealGamemasterRoles(data?.revealGamemasterRoles === true);
+      setMaskNightCameras(data?.maskNightCameras === true);
+    };
+    const onAssignments = (data: { playerId: string; roleId: string | null }[]) => {
+      if (userRole !== "gamemaster" || !Array.isArray(data)) return;
+      setGamemasterAssignments(Object.fromEntries(
+        data.filter(x => typeof x?.playerId === "string" &&
+          (x.roleId === null || typeof x.roleId === "string"))
+          .map(x => [x.playerId, x.roleId])
+      ));
+    };
+    const onConnect = () => {
+      socket.emit("scene:viewer-settings:request");
+      if (userRole === "gamemaster") socket.emit("game-role:request");
+    };
+    socket.on("scene:viewer-settings", onViewSettings);
+    socket.on("game-role:assignments", onAssignments);
+    socket.on("connect", onConnect);
+    onConnect();
+    return () => {
+      socket.off("scene:viewer-settings", onViewSettings);
+      socket.off("game-role:assignments", onAssignments);
+      socket.off("connect", onConnect);
+    };
+  }, [userRole]);
+
   return (
     <section className="game-scene" data-phase={phase}>
       <header className="game-scene__header">
@@ -64,27 +105,23 @@ export default function GameScene({
               : phaseLabels[phase]}
         </h2>}
 
-        <PhaseControls phase={phase} userRole={userRole} />
+        <PhaseControls phase={phase} userRole={userRole} vote={vote} />
         <CameraLayer players={players} viewerRole={userRole} phase={phase}
-          privateRoleId={privateRole?.roleId} teammateIds={teammates.map(p => p.id)} vote={vote} />
+          privateRoleId={privateRole?.roleId} teammateIds={teammates.map(p => p.id)}
+          vote={vote} elimination={elimination}
+          revealGamemasterRoles={revealGamemasterRoles}
+          maskNightCameras={maskNightCameras}
+          gamemasterAssignments={gamemasterAssignments} />
         {phase === "day" && <DayVotePanel status={vote} userRole={userRole} error={voteError} />}
       </div>
 
       <footer className="game-scene__footer">
-        <span>{name}</span>
-        <span>{userRole}</span>
-        {userRole === "player" && privateRole?.name && (
-          <span title="Nur deine eigene Rolle">🎭 {privateRole.name}</span>
-        )}
-        {userRole === "player" && privateRole?.roleId === "werewolf" && teammates.length > 0 && (
-          <span title="Nur für Werwölfe sichtbar">🐺 Team: {teammates.map((p) => p.name).join(", ")}</span>
-        )}
-        <RoleNotebook />
         {userRole !== "gamemaster" && onOpenCamera && (
           <button type="button" onClick={onOpenCamera} aria-label="Kameraeinstellungen öffnen">
             ⚙️ Kamera
           </button>
         )}
+        <RoleNotebook />
       </footer>
     </section>
   );

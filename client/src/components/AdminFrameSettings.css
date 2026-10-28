@@ -1,0 +1,27 @@
+.admin-frame-settings {
+  padding: 18px 20px;
+  margin: 18px 0;
+  border: 1px solid #556075;
+  background: #222833;
+  border-radius: 14px;
+}
+.admin-frame-settings h2 { margin-top: 0; }
+.admin-frame-settings__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #161d29;
+  padding: 13px;
+  border-radius: 8px;
+  margin: 9px 0;
+  cursor: pointer;
+}
+.admin-frame-settings__option input {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  accent-color: #d7ac66;
+  margin-top: 2px;
+}
+.admin-frame-settings__option span { display: grid; gap: 5px; }
+.admin-frame-settings__option small { color: #b5beca; line-height: 1.4; }

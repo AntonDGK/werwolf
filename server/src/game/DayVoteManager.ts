@@ -1,11 +1,11 @@
-export type VoteState = "idle" | "open" | "closed" | "resolved";
+export type VoteState = "idle" | "open" | "closed";
 export type VoteAccount = { name: string };
 export type VoteResult = { target: string; votes: number };
 
 /**
- * Abstimmung fuer das ganze Dorf, unabhaengig von Rollenplugins.
- * Entscheidungen und Phasenwechsel passieren nur durch explizite
- * Spielleiter-Aktionen. Keine automatische Eliminierung.
+ * Ein Tag hat genau drei Abschnitte:
+ * idle = Diskussion, open = GEHEIME Wahl, closed = veröffentlichtes Ergebnis.
+ * Der Erzähler/Gamemaster schaltet ausschließlich explizit weiter.
  */
 export class DayVoteManager {
   private state: VoteState = "idle";
@@ -20,21 +20,31 @@ export class DayVoteManager {
   }
 
   start(): void {
+    if (this.state !== "idle") return;
     this.state = "open";
     this.votes.clear();
   }
 
   cast(voterKey: string, targetKey: string): void {
     if (this.state !== "open") return;
-    this.votes.set(voterKey, targetKey); // eine Stimme pro Konto, aenderbar
+    // Zweiter Klick auf dasselbe Ziel zieht die Stimme zurück.
+    if (this.votes.get(voterKey) === targetKey) {
+      this.votes.delete(voterKey);
+    } else {
+      this.votes.set(voterKey, targetKey);
+    }
   }
 
   close(): void {
     if (this.state === "open") this.state = "closed";
   }
 
-  resolve(): void {
-    if (this.state === "closed") this.state = "resolved";
+  /** Nur nach einem Ergebnis OHNE eindeutigen Sieger wiederholen. */
+  repeat(accounts: ReadonlyMap<string, VoteAccount>): boolean {
+    if (this.state !== "closed" || this.getUniqueWinner(accounts) !== null) return false;
+    this.votes.clear();
+    this.state = "open";
+    return true;
   }
 
   removeAccount(key: string): void {
@@ -64,23 +74,32 @@ export class DayVoteManager {
     if (this.state !== "closed") return null;
     const results = this.tally(accounts);
     if (!results.length || (results[1] && results[0].votes === results[1].votes)) return null;
-    for (const [key, value] of accounts) {
-      if (value.name === results[0].target) return key;
+    for (const [key, account] of accounts) {
+      if (account.name === results[0].target) return key;
     }
     return null;
   }
 
-  getSharedStatus(voterCount: number, accounts: ReadonlyMap<string, VoteAccount>) {
-    // Nur aggregierte Stimmenzahlen (niemals Wähleridentitäten) veröffentlichen.
-    // Die Icons am Kamerarahmen aktualisieren sich während der offenen Tageswahl.
-    const results = this.state === "idle" ? [] : this.tally(accounts);
-    const uniqueWinner = this.state === "closed" ? this.getUniqueWinner(accounts) : null;
+  /**
+   * Im offenen Zustand nur fuer den Gamemaster Zahlen senden.
+   * Alle anderen (inkl. Erzaehler) bekommen weder Live-Ergebnisse noch
+   * Gesamtzahl der abgegebenen Stimmen. Erst CLOSED veroeffentlicht Zahlen.
+   */
+  getSharedStatus(
+    voterCount: number,
+    accounts: ReadonlyMap<string, VoteAccount>,
+    isGamemaster = false,
+  ) {
+    const isRevealed = this.state === "closed";
+    const canSeeCounts = isRevealed || isGamemaster;
+    const winnerKey = isRevealed ? this.getUniqueWinner(accounts) : null;
     return {
       state: this.state,
-      votesCast: this.votes.size,
-      eligibleVoters: voterCount,
-      results, // Aggregierte Stimmen schon waehrend offener Abstimmung sichtbar
-      winner: uniqueWinner ? accounts.get(uniqueWinner)?.name ?? null : null,
+      votesCast: canSeeCounts ? this.votes.size : 0,
+      eligibleVoters: canSeeCounts ? voterCount : 0,
+      results: canSeeCounts && this.state !== "idle" ? this.tally(accounts) : [],
+      winner: winnerKey ? accounts.get(winnerKey)?.name ?? null : null,
+      canRepeat: isRevealed && winnerKey === null,
     };
   }
 }

@@ -1,0 +1,5 @@
+.admin-day-vote { padding: 12px 14px; border: 1px solid #86684a; border-radius: 10px; margin: 12px 0; }
+.admin-day-vote h3 { margin: 0 0 6px; font-size: 1rem; }
+.admin-day-vote p { margin: 0 0 8px; }
+.admin-day-vote__results { display: flex; flex-wrap: wrap; gap: 7px; }
+.admin-day-vote__results span { background: rgba(120,100,77,.2); padding: 4px 7px; border-radius: 5px; }

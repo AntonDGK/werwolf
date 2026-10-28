@@ -21,6 +21,12 @@ export class PhaseManager {
 
   get currentPhase(): GamePhase { return this.phase; }
 
+  // Nur serverintern: Welche Rollen sind gerade aktiv?
+  // Der Rollenabschnitt selbst bleibt für Spieler geheim.
+  getActiveRoleIds(): readonly string[] {
+    return this.phase === "night" ? (this.steps[this.stepIndex]?.roleIds ?? []) : [];
+  }
+
   getStatus(): PhaseStatus {
     return { phase: this.phase, round: this.round, step: this.steps[this.stepIndex]?.id ?? null };
   }
