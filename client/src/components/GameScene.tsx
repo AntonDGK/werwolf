@@ -42,7 +42,6 @@ export default function GameScene({
     checkpoint: "day-vote" | "night-end";
     autoRestartOnWin: boolean;
   } | null>(null);
-  const [voteError, setVoteError] = useState("");
   const [elimination, setElimination] = useState<{playerId: string; sequence: number} | null>(null);
   const [revealGamemasterRoles, setRevealGamemasterRoles] = useState(false);
   const [maskNightCameras, setMaskNightCameras] = useState(false);
@@ -60,8 +59,7 @@ export default function GameScene({
   }, []);
 
   useEffect(() => {
-    const onStatus = (next: VoteStatus) => { setVote(next); setVoteError(""); };
-    const onError = (message: string) => setVoteError(message);
+    const onStatus = (next: VoteStatus) => setVote(next);
     const onEliminated = (event: { playerId?: string }) => {
       if (typeof event?.playerId !== "string") return;
       setElimination(previous => ({
@@ -70,12 +68,10 @@ export default function GameScene({
       }));
     };
     socket.on("day-vote:status", onStatus);
-    socket.on("day-vote:error", onError);
     socket.on("day-vote:eliminated", onEliminated);
     socket.emit("day-vote:request");
     return () => {
       socket.off("day-vote:status", onStatus);
-      socket.off("day-vote:error", onError);
       socket.off("day-vote:eliminated", onEliminated);
     };
   }, []);
