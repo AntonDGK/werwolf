@@ -38,14 +38,11 @@
 
 .camera-layer__video {
   position: absolute;
-  top: 10%;
-  left: 9%;
-  width: 88%;
-  height: 88%;
+  left: 7.5%;
+  top: 13.333333%;
+  width: 85%;
+  height: 73.333333%;
   object-fit: cover;
-  display: block;
-  background: black;
-  z-index: 1;
 }
 
 .camera-layer__placeholder {
