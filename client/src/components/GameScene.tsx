@@ -35,7 +35,6 @@ export default function GameScene({
   userRole,
   players,
   privateRole,
-  teammates = [],
   onOpenCamera,
   onOpenPhaseRemote,
 }: GameSceneProps) {
