@@ -13,23 +13,23 @@ export type RoleTiming = {
   phaseGroup?: string;
 };
 
+export type RoleTargeting = {
+  allowSelfTarget?: boolean;
+  allowSameRoleTarget?: boolean;
+  onlyAliveTargets?: boolean;
+};
+
 export type RoleCameraLayout = {
   night?: {
     active?: {
-      enabled: boolean;
-      target: "same-role";
-      layout: "dynamic";
-      area: {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-      };
+      target: "self" | "same-role";
+      mode: "center";
     };
   };
 };
 
 export type RoleDefinition = {
+  targeting?: RoleTargeting;
   cameraLayout?: RoleCameraLayout;
   id: RoleId;
   name: string;

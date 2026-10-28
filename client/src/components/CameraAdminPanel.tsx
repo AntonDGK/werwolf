@@ -27,11 +27,6 @@ export default function CameraAdminPanel() {
   return (
     <section className="camera-admin">
       <h2>📹 Kamerafreigaben</h2>
-      <p>
-        Die Streamer müssen ihre Kamera selbst auswählen und ausdrücklich zur Prüfung anbieten.
-        Freigeben ist erst nach empfangenem Kontrollbild möglich.
-        Du brauchst keine Socket-IDs oder Tokens einzugeben.
-      </p>
       {camera.adminCameras.length === 0 && <p>Keine Spieler oder Erzähler angemeldet.</p>}
       <div className="camera-admin__list">
         {camera.adminCameras.map((item) => {

@@ -16,20 +16,17 @@ export const werewolfConfig = {
     enabled: false,
     separatePhase: false,
   },
-
+  targeting: {
+    allowSelfTarget: false,
+    allowSameRoleTarget: false,
+    onlyAliveTargets: true,
+  },
   // Später: Alle lebenden Werwölfe gemeinsam anordnen
   cameraLayout: {
     night: {
       active: {
-        enabled: true,
         target: "same-role",
-        layout: "dynamic",
-        area: {
-          x: 15,
-          y: 25,
-          width: 70,
-          height: 50,
-        },
+        mode: "center",
       },
     },
   },
