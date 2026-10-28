@@ -9,6 +9,7 @@ import RoleAssignmentPanel from "./RoleAssignmentPanel";
 import AdminFrameSettings from "./AdminFrameSettings";
 import "./AdminPanel.css";
 import "./AdminPanelReset.css";
+import "./AdminPanelTop.css";
 import { socket } from "../socket";
 import type { DistributionStatus, DistributionUpdate } from "./RoleDistributionSettings";
 
@@ -25,12 +26,10 @@ export default function AdminPanel({ players, phaseControl, onPhaseAdvance, onVo
   return (
     <section className="admin-panel">
       <div className="admin-panel__content">
-        <PhaseRemotePanel view={phaseControl} onAdvance={onPhaseAdvance} onRepeat={onVoteRepeat} />
-        <h2>⚙️ Gamemaster-Einstellungen</h2>
-        <p>Hier findest du die zusätzlichen Verwaltungsfunktionen.</p>
-
-        {/* Reihenfolge der Adminbereiche bewusst nach Wunsch des Gamemasters. */}
-        <GlobalPanicButton />
+        <div className="admin-panel__top-row">
+          <PhaseRemotePanel view={phaseControl} onAdvance={onPhaseAdvance} onRepeat={onVoteRepeat} />
+          <GlobalPanicButton />
+        </div>
         <RoleAssignmentPanel players={players} distribution={distribution}
           onDistributionChange={onDistributionChange} connected={phaseControl.connected} />
         <div className="admin-panel__reset">

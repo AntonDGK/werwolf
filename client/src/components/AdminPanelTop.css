@@ -1,0 +1,24 @@
+/* Gamemaster: Phasensteuerung und globaler PANIC nebeneinander. */
+.admin-panel__top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 540px) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.admin-panel__top-row > .phase-remote,
+.admin-panel__top-row > .camera-admin {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* Auch auf kleineren Fenstern bleiben beide Bedienelemente nutzbar. */
+@media (max-width: 850px) {
+  .admin-panel__top-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
