@@ -1,6 +1,6 @@
 import type { PublicPlayer } from "../types/Player";
 
-export const CAMERA_SCALE = 1.5;
+export const CAMERA_SCALE = 1.2;
 
 export type CameraPosition = {
   left: string;
