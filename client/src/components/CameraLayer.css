@@ -38,10 +38,10 @@
 
 .camera-layer__video {
   position: absolute;
-  top: 19%;
-  left: 12%;
-  width: 76%;
-  height: 62%;
+  top: 10%;
+  left: 9%;
+  width: 88%;
+  height: 88%;
   object-fit: cover;
   display: block;
   background: black;
@@ -50,7 +50,7 @@
 
 .camera-layer__placeholder {
   position: absolute;
-  inset: 19% 12%;
+  inset: 10% 9%;
   display: grid;
   place-content: center;
   gap: 4px;
