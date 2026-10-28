@@ -3,9 +3,9 @@ import type { PublicPlayer } from "../types/Player";
 import { useEffect, useState } from "react";
 import { socket } from "../socket";
 import "./GameScene.css";
+import "./GameResult.css";
 import CameraLayer from "./CameraLayer";
 import RoleNotebook from "./RoleNotebook";
-import PhaseControls from "./PhaseControls";
 import DayVotePanel, { type VoteStatus } from "./DayVotePanel";
 
 type GameSceneProps = {
@@ -16,6 +16,7 @@ type GameSceneProps = {
   privateRole?: { roleId: string | null; name: string | null };
   teammates?: { id: string; name: string }[];
   onOpenCamera?: () => void;
+  onOpenPhaseRemote?: () => void;
 };
 
 const phaseLabels: Record<GamePhase, string> = {
@@ -33,13 +34,31 @@ export default function GameScene({
   privateRole,
   teammates = [],
   onOpenCamera,
+  onOpenPhaseRemote,
 }: GameSceneProps) {
   const [vote, setVote] = useState<VoteStatus | null>(null);
+  const [gameResult, setGameResult] = useState<{
+    winner: "werewolves" | "village";
+    checkpoint: "day-vote" | "night-end";
+    autoRestartOnWin: boolean;
+  } | null>(null);
   const [voteError, setVoteError] = useState("");
   const [elimination, setElimination] = useState<{playerId: string; sequence: number} | null>(null);
   const [revealGamemasterRoles, setRevealGamemasterRoles] = useState(false);
   const [maskNightCameras, setMaskNightCameras] = useState(false);
   const [gamemasterAssignments, setGamemasterAssignments] = useState<Record<string, string | null>>({});
+  useEffect(() => {
+    const onResult = (value: typeof gameResult) => setGameResult(value);
+    const requestResult = () => socket.emit("game:result:request");
+    socket.on("game:result", onResult);
+    socket.on("connect", requestResult);
+    requestResult();
+    return () => {
+      socket.off("game:result", onResult);
+      socket.off("connect", requestResult);
+    };
+  }, []);
+
   useEffect(() => {
     const onStatus = (next: VoteStatus) => { setVote(next); setVoteError(""); };
     const onError = (message: string) => setVoteError(message);
@@ -105,7 +124,14 @@ export default function GameScene({
               : phaseLabels[phase]}
         </h2>}
 
-        <PhaseControls phase={phase} userRole={userRole} vote={vote} />
+        {phase === "finished" && gameResult && (
+          <div className="game-scene__game-result" role="status">
+            <strong>{gameResult.winner === "werewolves" ? "🐺 Die Werwölfe gewinnen!" : "🏡 Das Dorf gewinnt!"}</strong>
+            <small>{gameResult.autoRestartOnWin
+              ? "Neue Runde startet gleich in der Lobby."
+              : "Der Gamemaster kann die Runde in der Lobby zurücksetzen."}</small>
+          </div>
+        )}
         <CameraLayer players={players} viewerRole={userRole} phase={phase}
           privateRoleId={privateRole?.roleId} teammateIds={teammates.map(p => p.id)}
           vote={vote} elimination={elimination}
@@ -119,6 +145,11 @@ export default function GameScene({
         {userRole !== "gamemaster" && onOpenCamera && (
           <button type="button" onClick={onOpenCamera} aria-label="Kameraeinstellungen öffnen">
             ⚙️ Kamera
+          </button>
+        )}
+        {userRole === "storyteller" && onOpenPhaseRemote && (
+          <button type="button" onClick={onOpenPhaseRemote} aria-label="Phasenfenster oeffnen">
+            🎛 Phasenfenster
           </button>
         )}
         <RoleNotebook />

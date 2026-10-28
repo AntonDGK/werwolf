@@ -27,6 +27,12 @@ export class PhaseManager {
     return this.phase === "night" ? (this.steps[this.stepIndex]?.roleIds ?? []) : [];
   }
 
+  /** Nur fuer die Steuerungsansicht: Rollenabschnitte der laufenden/naechsten Nacht. */
+  getNightTimeline(players: readonly Player[]): ScheduledRoleStep[] {
+    if (this.phase === "night") return this.steps;
+    return this.roleManager.createSteps("night", this.round + 1, players, this.usedOnce);
+  }
+
   getStatus(): PhaseStatus {
     return { phase: this.phase, round: this.round, step: this.steps[this.stepIndex]?.id ?? null };
   }

@@ -8,6 +8,7 @@ import type { GamePhase } from "./types/Types";
 import { RoleManager } from "./roles/RoleManager";
 import { PhaseManager } from "./game/PhaseManager";
 import { DayVoteManager } from "./game/DayVoteManager";
+import { decideWinner, type WinDecision, type WinCheckpoint } from "./game/GameEndManager";
 
 const app = express();
 const httpServer = createServer(app);
@@ -123,6 +124,86 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const roleManager = new RoleManager();
 const phaseManager = new PhaseManager(roleManager);
 const dayVotes = new DayVoteManager();
+
+function controllerPhaseStatus() {
+  return {
+    ...phaseManager.getStatus(),
+    nightSteps: phaseManager.getNightTimeline(players).map((entry) => ({
+      id: entry.id,
+      label: entry.id === "werewolves" ? "Werwölfe" :
+        entry.roleIds.map((id) => roleManager.getRole(id)?.config.name ?? id).join(" / "),
+    })),
+  };
+}
+
+function sendControllerPhaseStatus(id: string): void {
+  io.to(id).emit("phase:step:changed", controllerPhaseStatus());
+}
+
+function broadcastControllerPhaseStatus(): void {
+  for (const controller of players.filter((p) => p.userRole !== "player")) {
+    sendControllerPhaseStatus(controller.id);
+  }
+}
+
+
+// Teilnehmer der laufenden Runde bleiben auch bei Verbindungsabbruch dabei.
+// Accounts, die nie an der Runde teilgenommen haben, zaehlen nicht mit.
+const roundParticipantKeys = new Set<string>();
+let startedWithWerewolves = false;
+let gameResult: WinDecision | null = null;
+let restartTimeout: ReturnType<typeof setTimeout> | null = null;
+const AUTO_RESTART_DELAY_MS = 10_000;
+const gameEndSettings = { winDetectionEnabled: true };
+
+function cancelAutomaticRestart(): void {
+  if (restartTimeout !== null) clearTimeout(restartTimeout);
+  restartTimeout = null;
+}
+
+function sendGameResultTo(receiver: Player): void {
+  io.to(receiver.id).emit("game:result", gameResult === null ? null : {
+    ...gameResult,
+    autoRestartOnWin: true,
+    restartDelayMs: AUTO_RESTART_DELAY_MS,
+  });
+  if (receiver.userRole === "gamemaster") {
+    io.to(receiver.id).emit("game:admin-settings", { ...gameEndSettings });
+  }
+}
+
+function broadcastGameResult(): void {
+  for (const receiver of players) sendGameResultTo(receiver);
+}
+
+function scheduleAutomaticRestart(): void {
+  cancelAutomaticRestart();
+  if (!gameResult || phaseManager.currentPhase !== "finished") return;
+  restartTimeout = setTimeout(() => {
+    restartTimeout = null;
+    if (phaseManager.currentPhase === "finished" && gameResult) {
+      setGamePhase("lobby");
+    }
+  }, AUTO_RESTART_DELAY_MS);
+}
+
+/** Nur nach einer wirksamen Elimination am Tag oder nach Ende der Nacht. */
+function finishIfWinner(checkpoint: WinCheckpoint): boolean {
+  if (!gameEndSettings.winDetectionEnabled || gameResult || !startedWithWerewolves || roundParticipantKeys.size === 0) return false;
+  const participants = [...roundParticipantKeys]
+    .filter(key => playerAccounts.has(key))
+    .map(key => ({
+      roleId: gameRolesByAccount.get(key) ?? null,
+      isAlive: aliveByAccount.get(key) ?? true,
+    }));
+  const decision = decideWinner(participants, checkpoint);
+  if (!decision) return false;
+  gameResult = decision;
+  setGamePhase("finished");
+  broadcastGameResult();
+  scheduleAutomaticRestart();
+  return true;
+}
 
 // Nur zur Laufzeit gespeicherte Einstellungen (keine Datenbank).
 const sceneSettings = {
@@ -250,6 +331,7 @@ function closeAndRevealDayVote(): void {
       for (const viewer of players) {
         io.to(viewer.id).emit("day-vote:eliminated", { playerId: target.id, reason: "day-vote" });
       }
+      finishIfWinner("day-vote");
       return;
     }
   }
@@ -348,21 +430,42 @@ app.get("/", (_req, res) => {
 // Gemeinsamer, serverseitiger Phasenwechsel; die Rollen selbst bleiben privat.
 function setGamePhase(nextPhase: GamePhase): void {
   const previousPhase = phaseManager.currentPhase;
+  if (nextPhase === "lobby") {
+    cancelAutomaticRestart();
+    gameResult = null;
+    roundParticipantKeys.clear();
+    startedWithWerewolves = false;
+  }
+  // In der ersten Nacht legen wir den festen Teilnehmerkreis fest.
+  // Spaetere Reconnects aendern diese Menge nicht.
+  if (nextPhase === "night" && phaseManager.getStatus().round === 0) {
+    roundParticipantKeys.clear();
+    for (const p of players) {
+      if (p.userRole === "player") roundParticipantKeys.add(accountKey(p.name));
+    }
+    startedWithWerewolves = [...roundParticipantKeys].some(
+      key => gameRolesByAccount.get(key) === "werewolf",
+    );
+  }
+  if (nextPhase !== "finished" && nextPhase !== "lobby" && previousPhase === "finished") {
+    cancelAutomaticRestart();
+    gameResult = null;
+  }
   const status = phaseManager.setPhase(nextPhase, players);
   if (previousPhase !== status.phase) {
-    dayVotes.reset();
+    // Finales Vote-Ergebnis auf dem Finished-Screen sichtbar lassen.
+    if (status.phase !== "finished") dayVotes.reset();
     if (status.phase === "lobby") {
       aliveByAccount.clear();
-      for (const participant of players) participant.isAlive = true;
+      for (const p of players) p.isAlive = true;
       broadcastPlayers();
+      broadcastGameResult();
     }
     syncDayVotes();
   }
   syncSceneSettings();
   for (const recipient of players) io.to(recipient.id).emit("phaseChanged", status.phase);
-  for (const controller of players.filter(p => p.userRole !== "player")) {
-    io.to(controller.id).emit("phase:step:changed", status);
-  }
+  broadcastControllerPhaseStatus();
 }
 
 io.on("connection", (socket) => {
@@ -424,11 +527,12 @@ io.on("connection", (socket) => {
 
     players.push(admin);
     socket.emit("joinedAdmin");
-    socket.emit("phase:step:changed", phaseManager.getStatus());
+    socket.emit("phase:step:changed", controllerPhaseStatus());
     socket.emit("phaseChanged", phaseManager.currentPhase);
     socket.emit("role:catalog", roleManager.getPublicCatalog());
     broadcastPlayers();
     broadcastCameras();
+    sendGameResultTo(admin);
     console.log("Gamemaster erfolgreich angemeldet.");
   });
 
@@ -645,6 +749,7 @@ io.on("connection", (socket) => {
     broadcastPlayers();
     broadcastCameras();
     notifyNewViewer(socket.id);
+    sendGameResultTo(newPlayer);
     console.log(`${account.name} hat sich angemeldet.`);
 
     // Kein zusätzlicher Freigabe-Warteraum vorgesehen: Kontrolle durch
@@ -695,7 +800,7 @@ io.on("connection", (socket) => {
       gameRolesByAccount.delete(accountKey(target.name));
       dayVotes.removeAccount(accountKey(target.name));
       updatePlayer(target.id, { userRole: "storyteller", gameRole: null });
-      io.to(target.id).emit("phase:step:changed", phaseManager.getStatus());
+      sendControllerPhaseStatus(target.id);
       console.log(`${target.name} wurde zum Erzähler ernannt.`);
     } else if (targetId === null) {
       console.log("Erzählerberechtigung entfernt.");
@@ -745,6 +850,7 @@ io.on("connection", (socket) => {
     else gameRolesByAccount.set(accountKey(target.name), roleId as string);
     updatePlayer(target.id, { gameRole: roleId as string | null });
     syncGameRoles();
+    broadcastControllerPhaseStatus(); // Vorschau reagiert sofort auf neue Rollen.
     socket.emit("game-role:updated");
   });
 
@@ -761,6 +867,7 @@ io.on("connection", (socket) => {
     updatePlayer(target.id, { isAlive });
     if (!isAlive) dayVotes.removeAccount(accountKey(target.name));
     broadcastPlayers();
+    broadcastControllerPhaseStatus();
     socket.emit("game-role:updated");
   });
 
@@ -774,6 +881,23 @@ io.on("connection", (socket) => {
     const viewer = participant(socket.id);
     if (viewer) sendSceneSettingsTo(viewer);
   });
+  socket.on("game:result:request", () => {
+    const receiver = participant(socket.id);
+    if (receiver) sendGameResultTo(receiver);
+  });
+  socket.on("game:settings:request", () => {
+    if (!isAdmin(socket.id)) return;
+    socket.emit("game:admin-settings", { ...gameEndSettings });
+  });
+  socket.on("game:settings:update", (input: unknown) => {
+    if (!isAdmin(socket.id) || !input || typeof input !== "object" || Array.isArray(input)) return;
+    const value = input as Record<string, unknown>;
+    if (Object.keys(value).length !== 1 || typeof value.winDetectionEnabled !== "boolean") return;
+    gameEndSettings.winDetectionEnabled = value.winDetectionEnabled;
+    for (const receiver of players) sendGameResultTo(receiver);
+    scheduleAutomaticRestart();
+  });
+
   socket.on("scene:settings:update", (input: unknown) => {
     if (!isAdmin(socket.id)) return;
     if (!input || typeof input !== "object" || Array.isArray(input)) return;
@@ -803,7 +927,16 @@ io.on("connection", (socket) => {
       socket.emit("phase:error", "Ungueltige Spielphase.");
       return;
     }
+    // Auch bei direktem Wechsel aus der Nacht dieselbe Siegpruefung.
+    if (nextPhase === "day" && phaseManager.currentPhase === "night" && finishIfWinner("night-end")) return;
     setGamePhase(nextPhase as GamePhase);
+  });
+
+  // Die separate Fernbedienung darf sich den Zustand jederzeit anfordern.
+  socket.on("phase:control:request", () => {
+    const controller = participant(socket.id);
+    if (controller?.userRole !== "storyteller" && controller?.userRole !== "gamemaster") return;
+    sendControllerPhaseStatus(socket.id);
   });
 
   // Ein einziger "Weiter"-Knopf fuer Erzaehler und Gamemaster.
@@ -819,11 +952,10 @@ io.on("connection", (socket) => {
       // Letzter Abschnitt abgeschlossen (oder es gibt keinen): Tag beginnt.
       const next = phaseManager.nextStep();
       if (next.step === null) {
-        return setGamePhase("day");
+        if (!finishIfWinner("night-end")) setGamePhase("day");
+        return;
       }
-      for (const recipient of players.filter((p) => p.userRole !== "player")) {
-        io.to(recipient.id).emit("phase:step:changed", next);
-      }
+      broadcastControllerPhaseStatus();
       syncSceneSettings();
       return;
     }
@@ -848,10 +980,8 @@ io.on("connection", (socket) => {
   socket.on("phase:step:next", () => {
     const controller = participant(socket.id);
     if (controller?.userRole !== "gamemaster" && controller?.userRole !== "storyteller") return;
-    const status = phaseManager.nextStep();
-    for (const recipient of players.filter((p) => p.userRole !== "player")) {
-      io.to(recipient.id).emit("phase:step:changed", status);
-    }
+    phaseManager.nextStep();
+    broadcastControllerPhaseStatus();
     syncSceneSettings();
   });
 

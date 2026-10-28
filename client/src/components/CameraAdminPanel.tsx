@@ -26,7 +26,7 @@ export default function CameraAdminPanel() {
   const camera = useCamera();
   return (
     <section className="camera-admin">
-      <h2>📹 Kamerafreigaben & PANIC</h2>
+      <h2>📹 Kamerafreigaben</h2>
       <p>
         Die Streamer müssen ihre Kamera selbst auswählen und ausdrücklich zur Prüfung anbieten.
         Freigeben ist erst nach empfangenem Kontrollbild möglich.
@@ -73,12 +73,6 @@ export default function CameraAdminPanel() {
           );
         })}
       </div>
-      <button className="camera-admin__danger camera-admin__all" type="button" onClick={() => {
-        if (window.confirm("ALLE Kameras sperren? Alle aktuellen Übertragungen werden beendet und müssen einzeln neu freigegeben werden.")) {
-          camera.panicAll();
-        }
-      }}>🚨 ALLE KAMERAS SPERREN</button>
-      <p><small>PANIC trennt nur die Werwolf-WebRTC-Übertragungen – nicht fremde OBS-Aufnahmen. Direkte P2P-Verbindungen lassen sich gegen manipulierte Clients nicht zentral garantiert unterbrechen.</small></p>
     </section>
   );
 }

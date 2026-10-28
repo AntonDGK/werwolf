@@ -80,7 +80,7 @@ export default function RoleAssignmentPanel({ players }: { players: PublicPlayer
                   });
                 }}
               >
-                <option value="">Nicht zugewiesen</option>
+                <option value="">Dorfbewohner</option>
                 {catalog.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
               </select>
               <label className="role-assignment__alive">

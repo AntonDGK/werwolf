@@ -8,6 +8,7 @@ import LoginScreen from "./components/LoginScreen";
 import type { LoginMode } from "./components/LoginScreen";
 import GameScene from "./components/GameScene";
 import AdminPanel from "./components/AdminPanel";
+import { usePhaseRemoteHost } from "./hooks/usePhaseRemoteHost";
 import { socket } from "./socket";
 import type { UserRole, GamePhase } from "./types/Types";
 import type { PublicPlayer } from "./types/Player";
@@ -42,6 +43,7 @@ function AppContent() {
   const [privateRole, setPrivateRole] = useState<PrivateRole>({ roleId: null, name: null });
   const [teammates, setTeammates] = useState<Teammate[]>([]);
   const [loginError, setLoginError] = useState("");
+  const phaseRemote = usePhaseRemoteHost(userRole, screen !== "start");
 
   useEffect(() => {
     const handleConnect = () => {
@@ -210,8 +212,10 @@ function AppContent() {
                 ? () => setCameraSettingsOpen(true)
                 : undefined
             }
+            onOpenPhaseRemote={userRole === "storyteller" ? phaseRemote.openWindow : undefined}
           />
-          {userRole === "gamemaster" && <AdminPanel players={players} />}
+          {userRole === "gamemaster" && <AdminPanel players={players}
+            phaseControl={phaseRemote.view} onPhaseAdvance={phaseRemote.advance} onVoteRepeat={phaseRemote.repeat} />}
         </>
       )}
 

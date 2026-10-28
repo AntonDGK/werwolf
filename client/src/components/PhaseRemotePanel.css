@@ -1,0 +1,20 @@
+/* Gemeinsames, ruhiges Layout fuer Popup und Gamemaster-Adminpanel. */
+.phase-remote { color: #f2eade; background: #24272b; border: 1px solid #675642; border-radius: 14px; padding: 18px; width: 100%; max-width: 540px; margin-bottom: 20px; }
+.phase-remote__header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+.phase-remote__header h2 { margin:0; font-size:1.13rem; }
+.phase-remote__header span { font-size:.86rem; color:#b5aba0; }
+.phase-remote__timeline { list-style:none; padding:0; margin:0 0 16px; display:flex; flex-direction:column; gap:5px; }
+.phase-remote__step { display:flex; align-items:center; gap:10px; padding:6px 9px; color:#9d9a97; font-size:.95rem; border-radius:6px; }
+.phase-remote__step--past { color:#c0b7ac; }
+.phase-remote__step--active { background:#402428; color:#ff7777; font-size:1.35rem; font-weight:900; border:1px solid #8c3439; letter-spacing:.015em; }
+.phase-remote__marker { width:20px; text-align:center; flex:none; }
+.phase-remote__current { padding:18px 12px; color:#ff7777; font-weight:900; font-size:1.45rem; text-align:center; }
+.phase-remote__actions { display:flex; flex-wrap:wrap; gap:8px; }
+.phase-remote__actions button { cursor:pointer; font-weight:750; border-radius:9px; }
+.phase-remote__advance { background:#855332; color:#fff; border:1px solid #c99666; flex:1; min-height:52px; font-size:1.18rem; }
+.phase-remote__advance:hover:not(:disabled) { background:#a76c42; }
+.phase-remote__repeat { background:#383f49; color:#f2eade; border:1px solid #68717b; flex-basis:100%; min-height:42px; }
+.phase-remote__actions button:disabled { opacity:.45; cursor:not-allowed; }
+.phase-remote__error { color:#ff9999; font-size:.88rem; }
+.phase-remote__notice { color:#d7b7a2; font-size:.87rem; }
+@media (max-width:480px) { .phase-remote { padding:12px; } }

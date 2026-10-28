@@ -119,7 +119,14 @@ export default function CameraLayer({ players, privateRoleId, teammateIds = [], 
         else if (privateRoleId === "werewolf" && teammateIds.includes(player.id)) kind = "werewolf";
 
         const votable = Boolean(canVote && player.userRole === "player" && player.isAlive);
-        const voteCount = phase === "day" && vote?.state === "closed"
+        // Live-Zaehler nur fuer den Gamemaster in seiner Spielansicht;
+        // nach dem Schliessen sehen alle Spieler die finalen Stimmen.
+        // Der Server sendet Zwischenstaende ausschliesslich an den Gamemaster.
+        const showVoteIcons = (phase === "day" || phase === "finished") && (
+          vote?.state === "closed" ||
+          (viewerRole === "gamemaster" && vote?.state === "open")
+        );
+        const voteCount = showVoteIcons
           ? (vote?.results.find(result => result.target === player.name)?.votes ?? 0)
           : 0;
         return <CameraTile key={player.id} player={player} own={own} stream={stream}

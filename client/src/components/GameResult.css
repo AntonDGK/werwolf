@@ -1,0 +1,13 @@
+.game-scene__game-result {
+  margin: 12px auto 18px;
+  max-width: 640px;
+  padding: 18px 20px;
+  border: 1px solid #947044;
+  border-radius: 12px;
+  background: rgba(38, 27, 20, .92);
+  display: grid;
+  gap: 7px;
+  text-align: center;
+}
+.game-scene__game-result strong { font-size: clamp(1.2rem, 3vw, 2rem); }
+.game-scene__game-result small { opacity: .85; }

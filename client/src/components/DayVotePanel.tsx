@@ -19,9 +19,6 @@ export default function DayVotePanel({ status, userRole, error }: {
 }) {
   if (userRole !== "player") return null;
   return <div className="day-vote" aria-live="polite">
-    {status?.state === "open" && <span>
-      {status.myVote ? "🗳️ Stimme abgegeben – dieselbe Kamera erneut anklicken zum Zurückziehen" : "🗳️ Stimme abgeben – Kamera anklicken"}
-    </span>}
     {status?.state === "closed" && <span>
       {status.winner ? `🗳️ ${status.winner} scheidet aus` : "🗳️ Kein eindeutiges Ergebnis"}
     </span>}
