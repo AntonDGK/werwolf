@@ -1,5 +1,5 @@
 import express from "express";
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { createHash, randomBytes, randomInt, scryptSync, timingSafeEqual } from "crypto";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -124,6 +124,77 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const roleManager = new RoleManager();
 const phaseManager = new PhaseManager(roleManager);
 const dayVotes = new DayVoteManager();
+
+// Nur im RAM – dieselben Einstellungen fuer Gamemaster und Erzaehler.
+// Ohne Opt-in bleibt die bisherige manuelle Rollenvergabe unangetastet.
+type RoleDistributionSettings = {
+  enabled: boolean;
+  counts: Record<string, number>;
+};
+const roleDistributionSettings: RoleDistributionSettings = {
+  enabled: false,
+  counts: Object.fromEntries(roleManager.getPublicCatalog().map(role => [
+    role.id, role.id === "werewolf" ? 2 : role.id === "seer" ? 1 : 0,
+  ])),
+};
+
+function isController(player: Player | undefined): player is Player {
+  return Boolean(player && (player.userRole === "gamemaster" || player.userRole === "storyteller"));
+}
+
+function distributionStatus() {
+  return {
+    enabled: roleDistributionSettings.enabled,
+    counts: { ...roleDistributionSettings.counts },
+    catalog: roleManager.getPublicCatalog(),
+    playerCount: players.filter(p => p.userRole === "player").length,
+  };
+}
+
+function sendDistributionStatus(player: Player): void {
+  if (isController(player)) io.to(player.id).emit("role-distribution:status", distributionStatus());
+}
+
+function syncDistributionStatus(): void {
+  for (const player of players) sendDistributionStatus(player);
+}
+
+// Server nimmt niemals zufaellige Rollenzuordnungen vom Client entgegen.
+// Die Werte werden erst beim Beginn einer neuen Runde angewendet.
+function distributeRolesForNewRound(): boolean {
+  if (!roleDistributionSettings.enabled) return true;
+  const participants = players.filter(p => p.userRole === "player");
+  const specialRoleIds: string[] = [];
+  for (const [id, count] of Object.entries(roleDistributionSettings.counts)) {
+    if (!roleManager.isValidRoleId(id) || !Number.isSafeInteger(count) || count < 0) return false;
+    for (let n = 0; n < count; n++) specialRoleIds.push(id);
+  }
+  if (specialRoleIds.length > participants.length) return false;
+
+  // Fisher-Yates, serverseitig mit kryptografisch sicherem Zufall.
+  for (let i = specialRoleIds.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [specialRoleIds[i], specialRoleIds[j]] = [specialRoleIds[j], specialRoleIds[i]];
+  }
+  const shuffled = [...participants];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  // Alte Rollen auch von zurzeit abgemeldeten Konten entfernen.
+  // Die uebrigen Teilnehmer erhalten null (= Dorfbewohner).
+  gameRolesByAccount.clear();
+  for (const player of participants) player.gameRole = null;
+  shuffled.forEach((player, index) => {
+    const id = specialRoleIds[index] ?? null;
+    player.gameRole = id;
+    if (id !== null) gameRolesByAccount.set(accountKey(player.name), id);
+  });
+  syncGameRoles();
+  broadcastControllerPhaseStatus();
+  return true;
+}
 
 function controllerPhaseStatus() {
   return {
@@ -357,6 +428,7 @@ function broadcastPlayers(): void {
   syncGameRoles();
   syncDayVotes();
   syncSceneSettings();
+  syncDistributionStatus();
 }
 
 // Zentrale Hilfsfunktion für serverseitige Änderungen an Spielern.
@@ -430,6 +502,17 @@ app.get("/", (_req, res) => {
 // Gemeinsamer, serverseitiger Phasenwechsel; die Rollen selbst bleiben privat.
 function setGamePhase(nextPhase: GamePhase): void {
   const previousPhase = phaseManager.currentPhase;
+  // Nur EINMAL pro neuer Runde. Bei Tag/Nacht-Wechseln keine Neuziehung!
+  if ((nextPhase === "night" || nextPhase === "day") &&
+      (previousPhase === "preparation" || previousPhase === "lobby") &&
+      phaseManager.getStatus().round === 0) {
+    if (!distributeRolesForNewRound()) {
+      for (const controller of players.filter(isController)) {
+        io.to(controller.id).emit("phase:error", "Zu viele Spezialrollen fuer die angemeldeten Spieler. Bitte Rollenanzahlen anpassen.");
+      }
+      return;
+    }
+  }
   if (nextPhase === "lobby") {
     cancelAutomaticRestart();
     gameResult = null;
@@ -813,6 +896,32 @@ io.on("connection", (socket) => {
   // =====================================================
   // SPIELROLLEN – MANUELLE VERGABE (NUR GAMEMASTER)
   // =====================================================
+  // Gemeinsame Auto-Rollen-Einstellung: Gamemaster UND Erzaehler.
+  socket.on("role-distribution:request", () => {
+    const controller = participant(socket.id);
+    if (isController(controller)) sendDistributionStatus(controller);
+  });
+  socket.on("role-distribution:update", (input: unknown) => {
+    const controller = participant(socket.id);
+    if (!isController(controller)) return;
+    if (!input || typeof input !== "object" || Array.isArray(input)) return;
+    const data = input as Record<string, unknown>;
+    if (data.type === "enabled" &&
+        Object.keys(data).length === 2 &&
+        typeof data.enabled === "boolean") {
+      roleDistributionSettings.enabled = data.enabled;
+    } else if (data.type === "count" && Object.keys(data).length === 3 &&
+        roleManager.isValidRoleId(data.roleId) &&
+        typeof data.count === "number" &&
+        Number.isSafeInteger(data.count) && data.count >= 0 && data.count <= 100) {
+      roleDistributionSettings.counts[data.roleId as string] = data.count;
+    } else {
+      socket.emit("role-distribution:error", "Ungueltige Rolleneinstellung.");
+      return;
+    }
+    syncDistributionStatus();
+  });
+
   // Admin-Oberflaeche kann nach dem Mounten die aktuellen Daten erneut laden.
   socket.on("game-role:request", () => {
     if (!isAdmin(socket.id)) return;

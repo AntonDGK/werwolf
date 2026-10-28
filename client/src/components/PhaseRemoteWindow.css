@@ -1,2 +1,4 @@
 .phase-remote-window { padding:16px; min-height:100vh; display:flex; justify-content:center; align-items:flex-start; background:#17191e; }
 .phase-remote-window .phase-remote { margin:0; }
+
+.phase-remote-window__stack { width:100%; max-width:540px; }

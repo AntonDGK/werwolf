@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { socket } from "../socket";
 import type { PublicPlayer } from "../types/Player";
+import RoleDistributionSettings, { type DistributionStatus, type DistributionUpdate } from "./RoleDistributionSettings";
 import "./RoleAssignmentPanel.css";
 
 type RoleOption = { id: string; name: string; description: string; frame: string };
 type Assignment = { playerId: string; roleId: string | null };
 
-export default function RoleAssignmentPanel({ players }: { players: PublicPlayer[] }) {
+export default function RoleAssignmentPanel({ players, distribution, onDistributionChange, connected }: {
+  players: PublicPlayer[];
+  distribution: DistributionStatus | null;
+  onDistributionChange: (update: DistributionUpdate) => void;
+  connected: boolean;
+}) {
   const [catalog, setCatalog] = useState<RoleOption[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [pending, setPending] = useState<string | null>(null);
@@ -58,6 +64,7 @@ export default function RoleAssignmentPanel({ players }: { players: PublicPlayer
   return (
     <section className="role-assignment">
       <h2>🐺 Spielrollen vergeben</h2>
+      <RoleDistributionSettings status={distribution} connected={connected} onChange={onDistributionChange} />
       <p>Die Auswahl sieht nur der Gamemaster. Jeder Spieler erhält ausschließlich seine eigene Rolle.
         Die Vergabe ist in der Lobby und Vorbereitung möglich.</p>
       {candidates.length === 0 ? (
@@ -97,7 +104,6 @@ export default function RoleAssignmentPanel({ players }: { players: PublicPlayer
           ))}
         </div>
       )}
-      <p className="role-assignment__note">Zufallsverteilung und Anzahl pro Rolle ergänzen wir später.</p>
       {message && <p role="status">{message}</p>}
     </section>
   );

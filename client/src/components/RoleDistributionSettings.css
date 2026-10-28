@@ -1,0 +1,13 @@
+/* Selbe Komponentenansicht im Adminpanel und in der Erzähler-Fernbedienung. */
+.role-distribution { margin: 12px 0; padding: 12px; border: 1px solid #6c5843; border-radius: 10px; background: #25272a; color: #f3ebdf; }
+.role-distribution__heading { width: 100%; display:flex; justify-content:space-between; align-items:center; border:0; padding:8px 6px; background:transparent; color:inherit; cursor:pointer; font-size:1rem; font-weight:700; }
+.role-distribution__content { display:grid; gap:12px; padding:6px 2px; }
+.role-distribution__toggle { display:flex; align-items:center; gap:9px; cursor:pointer; }
+.role-distribution__toggle input { accent-color:#b87645; width:17px; height:17px; }
+.role-distribution__row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.role-distribution__counter { display:flex; gap:8px; align-items:center; }
+.role-distribution__counter button { border:1px solid #91765a; background:#383b3f; color:inherit; font-size:1.1rem; width:31px; height:31px; border-radius:7px; cursor:pointer; }
+.role-distribution__counter button:disabled { opacity:.4; cursor:default; }
+.role-distribution__counter output { width:20px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums; }
+.role-distribution__villagers { border-top:1px solid #615444; padding-top:12px; }
+.role-distribution__error { color:#ff9999; font-size:.85rem; margin:0; }

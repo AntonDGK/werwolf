@@ -2,16 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { socket } from "../socket";
 import type { UserRole } from "../types/Types";
 import type { PhaseControlStatus, PhaseControlView, PhaseControlVote } from "../components/PhaseRemotePanel";
+import type { DistributionStatus, DistributionUpdate } from "../components/RoleDistributionSettings";
 
 const CHANNEL = "werwolf-phase-remote-v1";
 
-type RemoteAction = { channel: typeof CHANNEL; type: "ready" | "advance" | "repeat" };
+type RemoteAction = {
+  channel: typeof CHANNEL;
+  type: "ready" | "advance" | "repeat" | "distribution";
+  update?: DistributionUpdate;
+};
 
 export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
   const enabled = isLoggedIn && (userRole === "gamemaster" || userRole === "storyteller");
   const popup = useRef<Window | null>(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [status, setStatus] = useState<PhaseControlStatus | null>(null);
+  const [distribution, setDistribution] = useState<DistributionStatus | null>(null);
   const [vote, setVote] = useState<PhaseControlVote | null>(null);
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(socket.connected);
@@ -20,6 +26,7 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
     if (!enabled) {
       setStatus(null);
       setVote(null);
+      setDistribution(null);
       setError("");
       return;
     }
@@ -29,17 +36,27 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
     const onVote = (value: PhaseControlVote) => {
       if (value && (value.state === "idle" || value.state === "open" || value.state === "closed")) setVote(value);
     };
+    const onDistribution = (value: DistributionStatus) => {
+      if (value && typeof value.enabled === "boolean" &&
+          value.counts && typeof value.counts === "object" &&
+          Array.isArray(value.catalog) && Number.isInteger(value.playerCount)) {
+        setDistribution(value);
+      }
+    };
     const onError = (value: string) => setError(typeof value === "string" ? value : "Steuerung fehlgeschlagen.");
     const onConnect = () => {
       setConnected(socket.connected);
       if (socket.connected) {
         socket.emit("phase:control:request");
         socket.emit("day-vote:request");
+        socket.emit("role-distribution:request");
       }
     };
     const onDisconnect = () => setConnected(false);
     socket.on("phase:step:changed", onStatus);
     socket.on("day-vote:status", onVote);
+    socket.on("role-distribution:status", onDistribution);
+    socket.on("role-distribution:error", onError);
     socket.on("phase:error", onError);
     socket.on("day-vote:error", onError);
     socket.on("connect", onConnect);
@@ -48,6 +65,8 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
     return () => {
       socket.off("phase:step:changed", onStatus);
       socket.off("day-vote:status", onVote);
+      socket.off("role-distribution:status", onDistribution);
+      socket.off("role-distribution:error", onError);
       socket.off("phase:error", onError);
       socket.off("day-vote:error", onError);
       socket.off("connect", onConnect);
@@ -56,6 +75,10 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
   }, [enabled]);
 
   const view: PhaseControlView = useMemo(() => ({ status, vote, connected: enabled && connected, error }), [status, vote, connected, enabled, error]);
+  const updateDistribution = useCallback((update: DistributionUpdate) => {
+    if (!enabled || !socket.connected) return;
+    socket.emit("role-distribution:update", update);
+  }, [enabled]);
   const advance = useCallback(() => {
     if (!enabled || !socket.connected) return;
     setError("");
@@ -69,9 +92,9 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
 
   const pushState = useCallback(() => {
     if (popup.current && !popup.current.closed) {
-      popup.current.postMessage({ channel: CHANNEL, type: "state", view }, window.location.origin);
+      popup.current.postMessage({ channel: CHANNEL, type: "state", view, distribution }, window.location.origin);
     }
-  }, [view]);
+  }, [view, distribution]);
 
   // Popup-Events akzeptieren wir ausschliesslich vom durch Button geoeffneten Fenster.
   useEffect(() => {
@@ -81,25 +104,32 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
       if (event.data.type === "ready") pushState();
       if (event.data.type === "advance") advance();
       if (event.data.type === "repeat") repeat();
+      if (event.data.type === "distribution" && event.data.update) updateDistribution(event.data.update);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [pushState, advance, repeat]);
+  }, [pushState, advance, repeat, updateDistribution]);
 
   useEffect(() => { pushState(); }, [pushState]);
 
   useEffect(() => {
     if (!isPopupOpen) return;
-
     const interval = window.setInterval(() => {
       if (!popup.current || popup.current.closed) {
         popup.current = null;
         setIsPopupOpen(false);
       }
     }, 500);
-
     return () => window.clearInterval(interval);
   }, [isPopupOpen]);
+
+  useEffect(() => {
+    if (!enabled && popup.current && !popup.current.closed) {
+      popup.current.close();
+      popup.current = null;
+      setIsPopupOpen(false);
+    }
+  }, [enabled]);
 
   const openWindow = useCallback(() => {
     if (!enabled || userRole !== "storyteller") return;
@@ -115,5 +145,5 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
     }
   }, [enabled, userRole]);
 
-  return { view, advance, repeat, openWindow, isPopupOpen };
+  return { view, distribution, updateDistribution, advance, repeat, openWindow, isPopupOpen };
 }

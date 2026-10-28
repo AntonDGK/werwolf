@@ -10,15 +10,18 @@ import AdminFrameSettings from "./AdminFrameSettings";
 import "./AdminPanel.css";
 import "./AdminPanelReset.css";
 import { socket } from "../socket";
+import type { DistributionStatus, DistributionUpdate } from "./RoleDistributionSettings";
 
 type AdminPanelProps = {
   players: PublicPlayer[];
   phaseControl: PhaseControlView;
   onPhaseAdvance: () => void;
   onVoteRepeat: () => void;
+  distribution: DistributionStatus | null;
+  onDistributionChange: (update: DistributionUpdate) => void;
 };
 
-export default function AdminPanel({ players, phaseControl, onPhaseAdvance, onVoteRepeat }: AdminPanelProps) {
+export default function AdminPanel({ players, phaseControl, onPhaseAdvance, onVoteRepeat, distribution, onDistributionChange }: AdminPanelProps) {
   return (
     <section className="admin-panel">
       <div className="admin-panel__content">
@@ -28,7 +31,8 @@ export default function AdminPanel({ players, phaseControl, onPhaseAdvance, onVo
 
         {/* Reihenfolge der Adminbereiche bewusst nach Wunsch des Gamemasters. */}
         <GlobalPanicButton />
-        <RoleAssignmentPanel players={players} />
+        <RoleAssignmentPanel players={players} distribution={distribution}
+          onDistributionChange={onDistributionChange} connected={phaseControl.connected} />
         <div className="admin-panel__reset">
           <h2>↩ Lobby zurücksetzen</h2>
           <GameEndSettings />

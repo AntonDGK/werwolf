@@ -212,14 +212,12 @@ function AppContent() {
                 ? () => setCameraSettingsOpen(true)
                 : undefined
             }
-            onOpenPhaseRemote={
-              userRole === "storyteller" && !phaseRemote.isPopupOpen
-                ? phaseRemote.openWindow
-                : undefined
-            }
+            onOpenPhaseRemote={userRole === "storyteller" && !phaseRemote.isPopupOpen
+              ? phaseRemote.openWindow : undefined}
           />
           {userRole === "gamemaster" && <AdminPanel players={players}
-            phaseControl={phaseRemote.view} onPhaseAdvance={phaseRemote.advance} onVoteRepeat={phaseRemote.repeat} />}
+            phaseControl={phaseRemote.view} onPhaseAdvance={phaseRemote.advance} onVoteRepeat={phaseRemote.repeat}
+            distribution={phaseRemote.distribution} onDistributionChange={phaseRemote.updateDistribution} />}
         </>
       )}
 
