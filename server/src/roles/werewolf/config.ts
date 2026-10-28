@@ -4,7 +4,15 @@ export const werewolfConfig = {
   id: "werewolf",
   name: "Werwolf",
   description: "Wählt nachts gemeinsam ein Opfer.",
-  frame: "werewolf",
+  notebook: {
+    description: `Die **Werwölfe** wählen nachts gemeinsam ein Opfer und bestätigen ihre Stimmen.
+
+++Ihr Ziel:++ Die Dorfbewohner besiegen.`,
+  },
+  frame: "frame-werewolf.png",
+  frameVisibility: {
+    sameRole: true,
+  },
 
   // Nachtphase
   night: {

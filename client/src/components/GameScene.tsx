@@ -46,9 +46,8 @@ export default function GameScene({
     autoRestartOnWin: boolean;
   } | null>(null);
   const [elimination, setElimination] = useState<{playerId: string; sequence: number} | null>(null);
-  const [revealGamemasterRoles, setRevealGamemasterRoles] = useState(false);
   const [maskNightCameras, setMaskNightCameras] = useState(false);
-  const [gamemasterAssignments, setGamemasterAssignments] = useState<Record<string, string | null>>({});
+  const [visibleFrames, setVisibleFrames] = useState<Record<string, string>>({});
   const [roleAction, setRoleAction] = useState<RoleActionState | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
   const [roleAnnouncement, setRoleAnnouncement] = useState<string | null>(null);
@@ -122,32 +121,29 @@ export default function GameScene({
   }, []);
 
   useEffect(() => {
-    const onViewSettings = (data: { revealGamemasterRoles?: boolean; maskNightCameras?: boolean }) => {
-      setRevealGamemasterRoles(data?.revealGamemasterRoles === true);
+    const onViewSettings = (data: { maskNightCameras?: boolean }) => {
       setMaskNightCameras(data?.maskNightCameras === true);
     };
-    const onAssignments = (data: { playerId: string; roleId: string | null }[]) => {
-      if (userRole !== "gamemaster" || !Array.isArray(data)) return;
-      setGamemasterAssignments(Object.fromEntries(
-        data.filter(x => typeof x?.playerId === "string" &&
-          (x.roleId === null || typeof x.roleId === "string"))
-          .map(x => [x.playerId, x.roleId])
-      ));
+    const onFrames = (data: unknown) => {
+      if (!data || typeof data !== "object" || Array.isArray(data)) return;
+      const values = Object.entries(data).filter(([id, file]) =>
+        id.length > 0 && typeof file === "string" && /^[a-zA-Z0-9_-]+\.png$/.test(file));
+      setVisibleFrames(Object.fromEntries(values));
     };
     const onConnect = () => {
       socket.emit("scene:viewer-settings:request");
-      if (userRole === "gamemaster") socket.emit("game-role:request");
+      socket.emit("game-role:frames:request");
     };
     socket.on("scene:viewer-settings", onViewSettings);
-    socket.on("game-role:assignments", onAssignments);
+    socket.on("game-role:frames", onFrames);
     socket.on("connect", onConnect);
     onConnect();
     return () => {
       socket.off("scene:viewer-settings", onViewSettings);
-      socket.off("game-role:assignments", onAssignments);
+      socket.off("game-role:frames", onFrames);
       socket.off("connect", onConnect);
     };
-  }, [userRole]);
+  }, []);
 
   return (
     <section className="game-scene" data-phase={phase}>
@@ -178,12 +174,10 @@ export default function GameScene({
           </div>
         )}
         <CameraLayer players={players} viewerRole={userRole} phase={phase}
-          privateRoleId={privateRole?.roleId} teammateIds={teammates.map(p => p.id)}
+          visibleFrames={visibleFrames}
           vote={vote} elimination={elimination}
           roleAction={phase === "night" && userRole === "player" ? roleAction : null}
-          revealGamemasterRoles={revealGamemasterRoles}
-          maskNightCameras={maskNightCameras}
-          gamemasterAssignments={gamemasterAssignments} />
+          maskNightCameras={maskNightCameras} />
       </div>
 
       <footer className="game-scene__footer">
@@ -197,7 +191,7 @@ export default function GameScene({
             🎛 Phasenfenster
           </button>
         )}
-        <RoleNotebook />
+        <RoleNotebook phase={phase} ownRoleId={privateRole?.roleId ?? null} isPlayer={userRole === "player"} />
       </footer>
     </section>
   );

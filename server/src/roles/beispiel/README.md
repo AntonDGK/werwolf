@@ -12,6 +12,12 @@ Diese Rolle ist **nicht registriert** und verändert das Spiel nicht.
 ## Kurzreferenz
 
 - `config.ts`: `night`, `day`, `buttons`, `selection`, `targeting`; `cameraLayout` optional.
+- `notebook.description`: **fett**, ++unterstrichen++, Leerzeilen.
+- `frame`: PNG-Dateiname unter `client/src/assets/frames/`.
+- `frameVisibility.sameRole`: gleiche Rolle darf Rahmen sehen.
+- `frameVisibility.visibleToRoles`: Rollen-IDs mit Sichtrecht.
+- `frameVisibility.publicOnReveal`: nach `reveal`-Effekt öffentlich.
+- Eigenen Rahmen sieht die Rolle immer; tote Spieler zeigen den Totenrahmen.
 - `onNightAction` / `onDayAction`: Button-Klick; Ergebnis `{ ok, effects? }`.
 - `onNightStepEnd`: Ende der eigenen Nachtphase; Aktionen im Nachtzustand vormerken.
 - `onNightStart` / `onNightEnd`: Beginn / Ende der Nacht.
@@ -23,4 +29,4 @@ Diese Rolle ist **nicht registriert** und verändert das Spiel nicht.
 - `buttons[].once`: nur nach **erfolgreicher** Aktion verbraucht.
 - Alle Aktionen serverseitig prüfen; nur Teilnehmer der aktiven Rolle werden ausgeführt.
 
-**Kamerasystem:** Keine bestehenden Kameradateien ändern.
+**Kamerastreams:** Unverändert; nur Rahmenanzeige konfigurieren.

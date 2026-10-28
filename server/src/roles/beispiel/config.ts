@@ -5,7 +5,20 @@ export const beispielConfig = {
   id: "beispiel",             // Eindeutige Rollen-ID
   name: "Beispielrolle",      // Anzeigename
   description: "Rollenvorlage ohne aktive Fähigkeit.", // Rollenbeschreibung
-  frame: "beispiel",          // Rahmen-ID
+  // **fett**, ++unterstrichen++, Absätze durch Leerzeilen
+  notebook: {
+    description: `Die **Beispielrolle** zeigt, wie Rollentexte funktionieren.
+
+++Unterstrichen++ und **fett** sind möglich.
+
+Mit Leerzeilen lassen sich Absätze trennen.`,
+  },
+  frame: "frame-beispiel.png", // Datei in client/src/assets/frames/
+  frameVisibility: {
+    sameRole: false,           // Gleiche Rolle sieht Rahmen?
+    visibleToRoles: [],        // Andere Rollen-IDs
+    publicOnReveal: false,     // Nach reveal-Effekt für alle?
+  },
 
   night: {
     enabled: true,            // Nachts aktiv

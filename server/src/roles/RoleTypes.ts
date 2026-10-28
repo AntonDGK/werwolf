@@ -58,11 +58,19 @@ export type RoleButtonState = {
   disabled: boolean;
 };
 
+export type RoleFrameVisibility = {
+  sameRole?: boolean;
+  visibleToRoles?: readonly RoleId[];
+  publicOnReveal?: boolean;
+};
+
 export type RoleDefinition = {
+  notebook?: { description: string };
   id: RoleId;
   name: string;
   description: string;
   frame: string;
+  frameVisibility?: RoleFrameVisibility;
   night?: RoleTiming;
   day?: RoleTiming;
   buttons?: {
@@ -136,4 +144,5 @@ export type RoleActions = {
 };
 
 export type RoleModule = { config: RoleDefinition; actions: RoleActions };
+export type NotebookRoleInfo = { id: RoleId; name: string; description: string };
 export type PublicRoleInfo = Pick<RoleDefinition, "id" | "name" | "description" | "frame">;

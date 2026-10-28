@@ -10,6 +10,7 @@ import GameScene from "./components/GameScene";
 import AdminPanel from "./components/AdminPanel";
 import { usePhaseRemoteHost } from "./hooks/usePhaseRemoteHost";
 import { socket } from "./socket";
+import { preloadRoleFrames } from "./components/preloadRoleFrames";
 import type { UserRole, GamePhase } from "./types/Types";
 import type { PublicPlayer } from "./types/Player";
 
@@ -32,6 +33,8 @@ function isUserRole(value: unknown): value is UserRole {
 }
 
 function AppContent() {
+  useEffect(() => { preloadRoleFrames(); }, []);
+
   const { stopCamera } = useCamera();
   const [screen, setScreen] = useState<Screen>("start");
   const [loginMode, setLoginMode] = useState<LoginMode>("player");
@@ -66,7 +69,7 @@ function AppContent() {
     const handleJoined = () => {
       setUserRole("player");
       setLoginError("");
-      // Nach Login die vorbereitete Kamera ausdruecklich zur Pruefung anbieten lassen.
+      // Kameraprüfung nach Login
       setCameraSettingsOpen(true);
       setScreen("lobby");
     };
@@ -161,11 +164,11 @@ function AppContent() {
       socket.off("phaseChanged", handlePhaseChanged);
       socket.off("players", handlePlayers);
     };
-    // Die Socket-Callbacks verwenden beim Stopp nur langlebige Refs.
+    // Stabile Socket-Callbacks
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Kamera niemals automatisch starten. "enabled" schützt insbesondere den Gamemaster.
+  // Kein Autostart; Gamemaster gesperrt
   const cameraAllowed = screen === "start"
     ? loginMode === "player"
     : userRole !== "gamemaster";
@@ -221,7 +224,7 @@ function AppContent() {
         </>
       )}
 
-      {/* Bleibt IMMER gemountet: laufende Kamera/Peer-Verbindung bleibt beim Login erhalten. */}
+      {/* Kamera-Verbindung erhalten */}
       <div
         className={screen === "start" ? "camera-settings camera-settings--login" : "camera-settings camera-settings--dialog"}
         style={{ display: cameraVisible ? undefined : "none" }}

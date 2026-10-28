@@ -3,9 +3,8 @@ import type { ReactNode } from "react";
 import type { PublicPlayer } from "../types/Player";
 import { useCamera } from "../camera/useCamera";
 import { socket } from "../socket";
-import CameraFrame, { type CameraFrameKind } from "./CameraFrame";
+import CameraFrame from "./CameraFrame";
 import villageVoteIcon from "../assets/icons/vote-villager.png";
-import werewolfVoteIcon from "../assets/icons/vote-werewolf.png";
 import "./CameraLayer.css";
 import "./CameraVoteEffects.css";
 import "./CameraLayerNight.css";
@@ -34,37 +33,27 @@ type RoleActionView = {
   targetIds: string[];
 };
 
-export type RoleVotesView = {
-  roleId: string;
-  counts: Record<string, number>;
-};
-
 type Props = {
   players: PublicPlayer[];
   roleAction?: RoleActionView | null;
-  roleVotes?: RoleVotesView | null;
-  privateRoleId?: string | null;
-  teammateIds?: string[];
+  visibleFrames?: Record<string, string>;
   vote?: VoteView;
   elimination?: { playerId: string; sequence: number } | null;
   phase?: string;
   viewerRole?: "player" | "storyteller" | "gamemaster";
-  revealGamemasterRoles?: boolean;
   maskNightCameras?: boolean;
-  gamemasterAssignments?: Record<string, string | null>;
 };
 
-function CameraTile({ player, own, stream, approved, kind, selected, canVote, onVote, voteCount, voteIcon, deathEffectSequence, nightMasked }: {
+function CameraTile({ player, own, stream, approved, frameName, selected, canVote, onVote, voteCount, deathEffectSequence, nightMasked }: {
   player: PublicPlayer;
   own: boolean;
   stream: MediaStream | undefined | null;
   approved: boolean;
-  kind: CameraFrameKind;
+  frameName: string;
   selected: boolean;
   canVote: boolean;
   onVote: () => void;
   voteCount: number;
-  voteIcon: string;
   deathEffectSequence?: number;
   nightMasked: boolean;
 }) {
@@ -77,7 +66,7 @@ function CameraTile({ player, own, stream, approved, kind, selected, canVote, on
         </div>
       )}
       {nightMasked && <div className="camera-layer__night-mask" aria-hidden="true" />}
-      <CameraFrame kind={kind} selected={selected} />
+      <CameraFrame filename={frameName} selected={selected} />
       {deathEffectSequence !== undefined && (
         // Todesanimation
         <span key={deathEffectSequence} className="camera-layer__elimination" aria-hidden="true">💀</span>
@@ -85,7 +74,7 @@ function CameraTile({ player, own, stream, approved, kind, selected, canVote, on
       {voteCount > 0 && (
         <div className="camera-layer__vote-icons" aria-hidden="true">
           {Array.from({ length: Math.min(voteCount, 6) }, (_, index) => (
-            <img key={index} src={voteIcon} alt="" draggable={false} />
+            <img key={index} src={villageVoteIcon} alt="" draggable={false} />
           ))}
           {voteCount > 6 && <span className="camera-layer__vote-more">+{voteCount - 6}</span>}
         </div>
@@ -104,8 +93,8 @@ function CameraTile({ player, own, stream, approved, kind, selected, canVote, on
   </button>;
 }
 
-export default function CameraLayer({ players, roleAction = null, roleVotes = null, privateRoleId, teammateIds = [], vote = null, elimination = null, phase, viewerRole,
-  revealGamemasterRoles = false, maskNightCameras = false, gamemasterAssignments = {} }: Props) {
+export default function CameraLayer({ players, roleAction = null, visibleFrames = {}, vote = null, elimination = null, phase, viewerRole,
+  maskNightCameras = false }: Props) {
   // Streams bleiben unverändert.
   const { localStream, remoteStreams, approvedIds } = useCamera();
   const selfId = socket.id;
@@ -119,19 +108,10 @@ export default function CameraLayer({ players, roleAction = null, roleVotes = nu
         const stream = own ? localStream : remoteStreams[player.id];
         const approved = approvedIds.includes(player.id);
         const nightMasked = phase === "night" && maskNightCameras && !own;
-        let kind: CameraFrameKind = "default";
-        if (nightMasked) kind = "blocked";
-        else if (!player.isAlive) kind = "dead";
-        else if (player.userRole === "storyteller") kind = "storyteller";
-        else if (viewerRole === "gamemaster" && revealGamemasterRoles) {
-          // Geheimrollen nur für GM.
-          const roleId = gamemasterAssignments[player.id];
-          if (roleId === "werewolf" || roleId === "seer") kind = roleId;
-        }
-        else if (!own && !approved) kind = "blocked";
-        else if (own && privateRoleId === "werewolf") kind = "werewolf";
-        else if (own && privateRoleId === "seer") kind = "seer";
-        else if (privateRoleId === "werewolf" && teammateIds.includes(player.id)) kind = "werewolf";
+        let frameName = visibleFrames[player.id] ?? "frame-default.png";
+        if (nightMasked || (!own && !approved)) frameName = "frame-blocked.png";
+        else if (!player.isAlive) frameName = "frame-dead.png";
+        else if (player.userRole === "storyteller") frameName = "frame-storyteller.png";
 
         const nightSelectable = Boolean(phase === "night" && viewerRole === "player" &&
           roleAction?.active && !roleAction.confirmed && roleAction.targetIds.includes(player.id));
@@ -141,17 +121,11 @@ export default function CameraLayer({ players, roleAction = null, roleVotes = nu
           vote?.state === "closed" ||
           (viewerRole === "gamemaster" && vote?.state === "open")
         );
-        const showWolfVotes = phase === "night" && roleVotes?.roleId === "werewolf" &&
-          (viewerRole === "gamemaster" || viewerRole === "storyteller" ||
-            (viewerRole === "player" && privateRoleId === "werewolf"));
-        const voteCount = showWolfVotes
-          ? (roleVotes?.counts[player.id] ?? 0)
-          : showVoteIcons
-            ? (vote?.results.find(result => result.target === player.name)?.votes ?? 0)
-            : 0;
+        const voteCount = showVoteIcons
+          ? (vote?.results.find(result => result.target === player.name)?.votes ?? 0)
+          : 0;
         return <CameraTile key={player.id} player={player} own={own} stream={stream}
-          approved={approved} kind={kind} canVote={votable} voteCount={voteCount}
-          voteIcon={showWolfVotes ? werewolfVoteIcon : villageVoteIcon}
+          approved={approved} frameName={frameName} canVote={votable} voteCount={voteCount}
           deathEffectSequence={elimination?.playerId === player.id ? elimination.sequence : undefined}
           selected={phase === "night"
             ? roleAction?.selectedTargetId === player.id

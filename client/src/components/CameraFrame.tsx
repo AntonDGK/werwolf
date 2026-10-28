@@ -1,59 +1,35 @@
-import defaultFrame from "../assets/frames/frame-default.png";
-import werewolfFrame from "../assets/frames/frame-werewolf.png";
-import seerFrame from "../assets/frames/frame-seer.png";
-import deadFrame from "../assets/frames/frame-dead.png";
-import selectedFrame from "../assets/frames/frame-selected.png";
-import blockedFrame from "../assets/frames/frame-blocked.png";
-import storytellerFrame from "../assets/frames/frame-storyteller.png";
-import gamemasterFrame from "../assets/frames/frame-gamemaster.png";
 import "./CameraFrame.css";
 
-export type CameraFrameKind =
-  | "default"
-  | "werewolf"
-  | "seer"
-  | "dead"
-  | "blocked"
-  | "storyteller"
-  | "gamemaster";
+// Alle PNG-Dateien automatisch erfassen.
+const frames = import.meta.glob<string>("../assets/frames/*.png", {
+  eager: true,
+  query: "?url",
+  import: "default",
+});
 
-const frameImages: Record<CameraFrameKind, string> = {
-  default: defaultFrame,
-  werewolf: werewolfFrame,
-  seer: seerFrame,
-  dead: deadFrame,
-  blocked: blockedFrame,
-  storyteller: storytellerFrame,
-  gamemaster: gamemasterFrame,
-};
+function frameUrl(filename: string): string | undefined {
+  if (!/^[a-zA-Z0-9_-]+\.png$/.test(filename)) return undefined;
+  return frames[`../assets/frames/${filename}`];
+}
 
 type Props = {
-  kind?: CameraFrameKind;
+  filename?: string;
   selected?: boolean;
 };
 
 export default function CameraFrame({
-  kind = "default",
+  filename = "frame-default.png",
   selected = false,
 }: Props) {
+  const src = frameUrl(filename) ?? frameUrl("frame-default.png");
+  const selectedSrc = selected ? frameUrl("frame-selected.png") : undefined;
+
   return (
     <>
-      <img
-        className="camera-frame__image"
-        src={frameImages[kind]}
-        alt=""
-        aria-hidden="true"
-        draggable={false}
-      />
-      {selected && (
-        <img
-          className="camera-frame__image camera-frame__selected"
-          src={selectedFrame}
-          alt=""
-          aria-hidden="true"
-          draggable={false}
-        />
-      )}
+      {src && <img className="camera-frame__image" src={src}
+        alt="" aria-hidden="true" draggable={false} />}
+      {selectedSrc && <img className="camera-frame__image camera-frame__selected"
+        src={selectedSrc} alt="" aria-hidden="true" draggable={false} />}
     </>
   );
 }

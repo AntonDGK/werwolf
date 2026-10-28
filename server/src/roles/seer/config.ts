@@ -4,7 +4,12 @@ export const seerConfig = {
   id: "seer",
   name: "Seher",
   description: "Kann nachts die Rolle eines Spielers untersuchen.",
-  frame: "seer",
+  notebook: {
+    description: `Der **Seher** kann nachts die Rolle eines Spielers untersuchen.
+
+++Hinweis:++ Diese Fähigkeit ist noch in Entwicklung.`,
+  },
+  frame: "frame-seer.png",
   night: {
     enabled: true,
     separatePhase: true,

@@ -1,11 +1,13 @@
 import type { Player } from "../types/Player";
 import { roleRegistry } from "./RoleRegistry";
+import { villagerConfig } from "./villager/config";
 import { canRoleTarget } from "./canTarget";
 import { ActionConfirmationManager } from "./ActionConfirmationManager";
 import type { NightStateManager } from "./NightStateManager";
 import type {
   AbilityFrequency,
   PublicRoleInfo,
+  NotebookRoleInfo,
   RoleActionPhase,
   RoleActionPlayer,
   RoleActionResult,
@@ -30,6 +32,7 @@ export class RoleManager {
   private readonly confirmations = new ActionConfirmationManager();
   private readonly completedConfirmations = new Map<RoleId, Set<string>>();
   private readonly usedButtons = new Set<string>();
+  private readonly publicFrames = new Map<string, RoleId>();
 
   constructor(entries: Record<string, RoleModule> = roleRegistry) {
     for (const [key, entry] of Object.entries(entries)) {
@@ -55,6 +58,44 @@ export class RoleManager {
       description: config.description,
       frame: config.frame,
     }));
+  }
+
+  getNotebookEntries(assignedRoles: readonly (RoleId | null)[]): NotebookRoleInfo[] {
+    const ids = new Set(assignedRoles.map(id => id ?? "villager"));
+    return [...ids].flatMap(id => {
+      const config = id === "villager" ? villagerConfig : this.roles.get(id)?.config;
+      if (!config) return [];
+      return [{
+        id: config.id,
+        name: config.name,
+        description: config.notebook?.description ?? config.description,
+      }];
+    }).sort((a, b) => a.name.localeCompare(b.name, "de"));
+  }
+
+  getFrameFilename(roleId: RoleId | null): string | null {
+    return roleId ? this.roles.get(roleId)?.config.frame ?? null : null;
+  }
+
+  getVisibleFrame(
+    viewer: RoleActionPlayer | null,
+    target: RoleActionPlayer,
+  ): string | null {
+    if (target.userRole !== "player" || !target.gameRole) return null;
+    const config = this.roles.get(target.gameRole)?.config;
+    if (!config) return null;
+    if (viewer?.id === target.id && viewer.userRole === "player") return config.frame;
+    if (config.frameVisibility?.publicOnReveal && this.publicFrames.get(target.id) === target.gameRole) return config.frame;
+    if (viewer?.userRole !== "player" || !viewer.gameRole) return null;
+    if (viewer.gameRole === target.gameRole && config.frameVisibility?.sameRole) return config.frame;
+    if (config.frameVisibility?.visibleToRoles?.includes(viewer.gameRole)) return config.frame;
+    return null;
+  }
+
+  publishFrameOnReveal(targetId: string, roleId: RoleId | null): void {
+    if (roleId && this.roles.get(roleId)?.config.frameVisibility?.publicOnReveal) {
+      this.publicFrames.set(targetId, roleId);
+    }
   }
 
   select(
@@ -254,6 +295,7 @@ export class RoleManager {
   }
 
   resetGame(): void {
+    this.publicFrames.clear();
     this.resetRoleActions();
     this.usedButtons.clear();
     for (const role of this.roles.values()) role.actions.onGameReset?.();

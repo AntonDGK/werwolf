@@ -4,7 +4,17 @@ export const captainConfig = {
   id: "captain",
   name: "Hauptmann",
   description: "Kann sich tagsüber offenbaren. Danach zählt seine Tagesstimme doppelt.",
-  frame: "captain",
+  notebook: {
+    description: `Der **Hauptmann** kann sich tagsüber **offenbaren**.
+
+Nach seiner Offenbarung zählt seine Stimme bei Tagesabstimmungen **doppelt**.
+
+++Die Offenbarung ist nur einmal pro Spiel möglich.++`,
+  },
+  frame: "frame-captain.png",
+  frameVisibility: {
+    publicOnReveal: true,
+  },
   night: { enabled: false, separatePhase: false },
   day: { enabled: true, separatePhase: false },
   buttons: {

@@ -181,6 +181,7 @@ function applyRoleEffects(effects: readonly RoleEffect[]): void {
 
   for (const targetId of resolved.revealed) {
     const roleId = gameRolesByAccount.get(targetId) ?? null;
+    roleManager.publishFrameOnReveal(targetId, roleId);
     const roleName = roleId ? roleManager.getRole(roleId)?.config.name ?? roleId : "Dorfbewohner";
     for (const receiver of players) {
       io.to(receiver.id).emit("role:revealed", {
@@ -191,6 +192,7 @@ function applyRoleEffects(effects: readonly RoleEffect[]): void {
       });
     }
   }
+  if (resolved.revealed.length) syncVisibleRoleFrames();
   if (eliminated) broadcastPlayers();
 }
 
@@ -428,6 +430,7 @@ function sendSceneSettingsTo(viewer: Player): void {
 
 function syncSceneSettings(): void {
   for (const viewer of players) sendSceneSettingsTo(viewer);
+  syncVisibleRoleFrames();
 }
 
 function accountKey(name: string): string {
@@ -465,6 +468,39 @@ function broadcastAccountList(): void {
   }
 }
 
+function sendRoleNotebookTo(receiver: Player): void {
+  const inRound = roundParticipantKeys.size > 0 &&
+    (phaseManager.currentPhase === "night" ||
+     phaseManager.currentPhase === "day" ||
+     phaseManager.currentPhase === "finished");
+  const roles = inRound
+    ? roleManager.getNotebookEntries(roundRolePlayers().map(player => player.gameRole))
+    : [];
+  io.to(receiver.id).emit("role:notebook", roles);
+}
+
+function syncRoleNotebooks(): void {
+  for (const receiver of players) sendRoleNotebookTo(receiver);
+}
+
+function sendVisibleRoleFramesTo(receiver: Player): void {
+  const viewer = receiver.userRole === "player" ? roleActionPlayer(receiver) : null;
+  const gmVisible = sceneSettings.gmRoleFramesPermanent || phaseManager.currentPhase === "night";
+  const visible: Record<string, string> = {};
+  for (const target of players) {
+    if (target.userRole !== "player") continue;
+    const frame = receiver.userRole === "gamemaster" && gmVisible
+      ? roleManager.getFrameFilename(target.gameRole)
+      : roleManager.getVisibleFrame(viewer, roleActionPlayer(target));
+    if (frame) visible[target.id] = frame;
+  }
+  io.to(receiver.id).emit("game-role:frames", visible);
+}
+
+function syncVisibleRoleFrames(): void {
+  for (const receiver of players) sendVisibleRoleFramesTo(receiver);
+}
+
 function syncGameRoles(): void {
   const available = roleManager.getPublicCatalog();
   const byId = new Map(available.map((entry) => [entry.id, entry]));
@@ -488,6 +524,7 @@ function syncGameRoles(): void {
       : [];
     io.to(receiver.id).emit("game-role:teammates", teammates);
   }
+  syncVisibleRoleFrames();
 }
 
 function dayVoteWeight(voterKey: string): number {
@@ -647,7 +684,9 @@ function setGamePhase(nextPhase: GamePhase): void {
     roundParticipantKeys.clear();
     startedWithWerewolves = false;
   }
-  if (nextPhase === "night" && phaseManager.getStatus().round === 0) {
+  if ((nextPhase === "night" || nextPhase === "day") &&
+      (previousPhase === "lobby" || previousPhase === "preparation") &&
+      phaseManager.getStatus().round === 0) {
     roundParticipantKeys.clear();
     for (const p of players) {
       if (p.userRole === "player") roundParticipantKeys.add(accountKey(p.name));
@@ -688,6 +727,7 @@ function setGamePhase(nextPhase: GamePhase): void {
     syncDayVotes();
   }
   syncSceneSettings();
+  syncRoleNotebooks();
   for (const recipient of players) io.to(recipient.id).emit("phaseChanged", status.phase);
   broadcastControllerPhaseStatus();
   sendRoleProgress();
@@ -1038,6 +1078,16 @@ io.on("connection", (socket) => {
       return;
     }
     syncDistributionStatus();
+  });
+
+  socket.on("role:notebook:request", () => {
+    const receiver = participant(socket.id);
+    if (receiver) sendRoleNotebookTo(receiver);
+  });
+
+  socket.on("game-role:frames:request", () => {
+    const viewer = participant(socket.id);
+    if (viewer) sendVisibleRoleFramesTo(viewer);
   });
 
   socket.on("game-role:request", () => {
