@@ -124,7 +124,7 @@ export default function CameraLayer({ players, privateRoleId, teammateIds = [], 
         // Der Server sendet Zwischenstaende ausschliesslich an den Gamemaster.
         const showVoteIcons = (phase === "day" || phase === "finished") && (
           vote?.state === "closed" ||
-          (viewerRole === "gamemaster" && vote?.state === "open")
+          ((viewerRole === "gamemaster" || viewerRole === "storyteller")  && vote?.state === "open")
         );
         const voteCount = showVoteIcons
           ? (vote?.results.find(result => result.target === player.name)?.votes ?? 0)

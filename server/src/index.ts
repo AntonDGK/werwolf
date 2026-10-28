@@ -303,7 +303,7 @@ function syncDayVotes(): void {
     // Bei offener Wahl sieht NUR der Gamemaster Stimmenzahlen.
     // Ergebnisse nicht lediglich im Client verstecken!
     const view = dayVotes.getSharedStatus(
-      voterCount, playerAccounts, receiver.userRole === "gamemaster",
+      voterCount, playerAccounts, receiver.userRole === "gamemaster" || receiver.userRole === "storyteller",
     );
     io.to(receiver.id).emit("day-vote:status", {
       ...view,

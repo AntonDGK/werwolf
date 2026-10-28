@@ -10,6 +10,7 @@ type RemoteAction = { channel: typeof CHANNEL; type: "ready" | "advance" | "repe
 export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
   const enabled = isLoggedIn && (userRole === "gamemaster" || userRole === "storyteller");
   const popup = useRef<Window | null>(null);
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [status, setStatus] = useState<PhaseControlStatus | null>(null);
   const [vote, setVote] = useState<PhaseControlVote | null>(null);
   const [error, setError] = useState("");
@@ -87,6 +88,19 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
 
   useEffect(() => { pushState(); }, [pushState]);
 
+  useEffect(() => {
+    if (!isPopupOpen) return;
+
+    const interval = window.setInterval(() => {
+      if (!popup.current || popup.current.closed) {
+        popup.current = null;
+        setIsPopupOpen(false);
+      }
+    }, 500);
+
+    return () => window.clearInterval(interval);
+  }, [isPopupOpen]);
+
   const openWindow = useCallback(() => {
     if (!enabled || userRole !== "storyteller") return;
     const url = new URL(window.location.href);
@@ -94,11 +108,12 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
     const win = window.open(url.toString(), "werwolf-phasenfenster", "popup=yes,width=480,height=700,resizable=yes,scrollbars=yes");
     if (win) {
       popup.current = win;
+      setIsPopupOpen(true);
       win.focus();
     } else {
       setError("Popup blockiert. Bitte Popups fuer diese Webseite erlauben.");
     }
   }, [enabled, userRole]);
 
-  return { view, advance, repeat, openWindow };
+  return { view, advance, repeat, openWindow, isPopupOpen };
 }

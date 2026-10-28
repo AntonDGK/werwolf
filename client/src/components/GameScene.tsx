@@ -6,7 +6,7 @@ import "./GameScene.css";
 import "./GameResult.css";
 import CameraLayer from "./CameraLayer";
 import RoleNotebook from "./RoleNotebook";
-import DayVotePanel, { type VoteStatus } from "./DayVotePanel";
+import type { VoteStatus } from "./DayVotePanel";
 
 type GameSceneProps = {
   phase: GamePhase;
@@ -116,13 +116,6 @@ export default function GameScene({
       </header>
 
       <div className="game-scene__content">
-        {userRole !== "storyteller" && <h2>
-          {phase === "night"
-            ? "🌙 Das Dorf schläft"
-            : phase === "day"
-              ? "☀️ Das Dorf erwacht"
-              : phaseLabels[phase]}
-        </h2>}
 
         {phase === "finished" && gameResult && (
           <div className="game-scene__game-result" role="status">
@@ -138,7 +131,6 @@ export default function GameScene({
           revealGamemasterRoles={revealGamemasterRoles}
           maskNightCameras={maskNightCameras}
           gamemasterAssignments={gamemasterAssignments} />
-        {phase === "day" && <DayVotePanel status={vote} userRole={userRole} error={voteError} />}
       </div>
 
       <footer className="game-scene__footer">
