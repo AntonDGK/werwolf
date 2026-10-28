@@ -47,6 +47,7 @@ export default function GameScene({
   const [elimination, setElimination] = useState<{playerId: string; sequence: number} | null>(null);
   const [maskNightCameras, setMaskNightCameras] = useState(false);
   const [visibleFrames, setVisibleFrames] = useState<Record<string, string>>({});
+  const [focusedPlayerIds, setFocusedPlayerIds] = useState<string[]>([]);
   const [roleAction, setRoleAction] = useState<RoleActionState | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
   const [roleAnnouncement, setRoleAnnouncement] = useState<string | null>(null);
@@ -129,15 +130,25 @@ export default function GameScene({
         id.length > 0 && typeof file === "string" && /^[a-zA-Z0-9_-]+\.png$/.test(file));
       setVisibleFrames(Object.fromEntries(values));
     };
+    const onCameraLayout = (data: unknown) => {
+      if (!data || typeof data !== "object" || Array.isArray(data)) return;
+      const ids = (data as { focusedPlayerIds?: unknown }).focusedPlayerIds;
+      if (Array.isArray(ids) && ids.length <= 64 && ids.every(id => typeof id === "string")) {
+        setFocusedPlayerIds(ids);
+      }
+    };
     const onConnect = () => {
+      socket.emit("scene:camera-layout:request");
       socket.emit("scene:viewer-settings:request");
       socket.emit("game-role:frames:request");
     };
+    socket.on("scene:camera-layout", onCameraLayout);
     socket.on("scene:viewer-settings", onViewSettings);
     socket.on("game-role:frames", onFrames);
     socket.on("connect", onConnect);
     onConnect();
     return () => {
+      socket.off("scene:camera-layout", onCameraLayout);
       socket.off("scene:viewer-settings", onViewSettings);
       socket.off("game-role:frames", onFrames);
       socket.off("connect", onConnect);
@@ -174,6 +185,7 @@ export default function GameScene({
         )}
         <CameraLayer players={players} viewerRole={userRole} phase={phase}
           visibleFrames={visibleFrames}
+          focusedPlayerIds={focusedPlayerIds}
           vote={vote} elimination={elimination}
           roleAction={phase === "night" && userRole === "player" ? roleAction : null}
           maskNightCameras={maskNightCameras} />

@@ -75,7 +75,9 @@
 
 .game-scene__footer {
   font-size: 14px;
-  opacity: 0.8;
+  position: relative;
+  z-index: 10;
+  opacity: 1;
 }
 
 @media (max-width: 600px) {

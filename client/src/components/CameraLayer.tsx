@@ -1,9 +1,11 @@
-import { useEffect, useRef } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { PublicPlayer } from "../types/Player";
 import { useCamera } from "../camera/useCamera";
 import { socket } from "../socket";
 import CameraFrame from "./CameraFrame";
+import { calculateCameraLayout } from "./CameraLayoutManager";
+import type { CameraPosition } from "./CameraLayoutManager";
 import villageVoteIcon from "../assets/icons/vote-villager.png";
 import "./CameraLayer.css";
 import "./CameraVoteEffects.css";
@@ -37,6 +39,7 @@ type Props = {
   players: PublicPlayer[];
   roleAction?: RoleActionView | null;
   visibleFrames?: Record<string, string>;
+  focusedPlayerIds?: string[];
   vote?: VoteView;
   elimination?: { playerId: string; sequence: number } | null;
   phase?: string;
@@ -44,7 +47,7 @@ type Props = {
   maskNightCameras?: boolean;
 };
 
-function CameraTile({ player, own, stream, approved, frameName, selected, canVote, onVote, voteCount, deathEffectSequence, nightMasked }: {
+function CameraTile({ player, own, stream, approved, frameName, selected, canVote, onVote, voteCount, deathEffectSequence, nightMasked, position }: {
   player: PublicPlayer;
   own: boolean;
   stream: MediaStream | undefined | null;
@@ -56,6 +59,7 @@ function CameraTile({ player, own, stream, approved, frameName, selected, canVot
   voteCount: number;
   deathEffectSequence?: number;
   nightMasked: boolean;
+  position: CameraPosition;
 }) {
   const contents: ReactNode = <>
     <div className="camera-layer__picture">
@@ -86,23 +90,29 @@ function CameraTile({ player, own, stream, approved, frameName, selected, canVot
   // Kamera-Video bleibt gemountet.
   return <button type="button"
     className={`camera-layer__frame${canVote ? " camera-layer__frame--votable" : ""}`}
+    style={position}
     onClick={onVote} disabled={!canVote}
     aria-pressed={canVote ? selected : undefined}
     aria-label={canVote ? `Für ${player.name} stimmen` : `Kamera von ${player.name}`}>
     {contents}
+    <span className="camera-layer__label">{player.name}</span>
   </button>;
 }
 
-export default function CameraLayer({ players, roleAction = null, visibleFrames = {}, vote = null, elimination = null, phase, viewerRole,
+export default function CameraLayer({ players, roleAction = null, visibleFrames = {}, focusedPlayerIds = [], vote = null, elimination = null, phase, viewerRole,
   maskNightCameras = false }: Props) {
   // Streams bleiben unverändert.
   const { localStream, remoteStreams, approvedIds } = useCamera();
   const selfId = socket.id;
+  const layout = useMemo(
+    () => calculateCameraLayout(players, phase === "night" ? focusedPlayerIds : []),
+    [players, focusedPlayerIds, phase],
+  );
   const canVote = viewerRole === "player" && phase === "day" &&
     players.some(p => p.id === selfId && p.userRole === "player" && p.isAlive) && vote?.state === "open";
 
   return (
-    <div className="camera-layer">
+    <div className="camera-layer" style={{ "--camera-rows": layout.rows } as CSSProperties}>
       {players.filter((player) => player.userRole !== "gamemaster").map((player) => {
         const own = player.id === selfId;
         const stream = own ? localStream : remoteStreams[player.id];
@@ -125,6 +135,7 @@ export default function CameraLayer({ players, roleAction = null, visibleFrames 
           ? (vote?.results.find(result => result.target === player.name)?.votes ?? 0)
           : 0;
         return <CameraTile key={player.id} player={player} own={own} stream={stream}
+          position={layout.positions[player.id]}
           approved={approved} frameName={frameName} canVote={votable} voteCount={voteCount}
           deathEffectSequence={elimination?.playerId === player.id ? elimination.sequence : undefined}
           selected={phase === "night"

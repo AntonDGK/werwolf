@@ -428,8 +428,36 @@ function sendSceneSettingsTo(viewer: Player): void {
   }
 }
 
+function sendCameraLayoutTo(viewer: Player): void {
+  const focusedPlayerIds: string[] = [];
+  if (phaseManager.currentPhase === "night") {
+    const activeRoles = phaseManager.getActiveRoleIds();
+    const controller = viewer.userRole === "gamemaster" || viewer.userRole === "storyteller";
+    const canFocusOwnRole = viewer.userRole === "player" && viewer.isAlive &&
+      viewer.gameRole !== null && activeRoles.includes(viewer.gameRole);
+    if (controller || canFocusOwnRole) {
+      for (const target of players) {
+        if (target.userRole !== "player" || !target.isAlive || !target.gameRole ||
+            !activeRoles.includes(target.gameRole)) continue;
+        const config = roleManager.getRole(target.gameRole)?.config;
+        const nightLayout = config?.cameraLayout?.night?.active;
+        if (nightLayout && "enabled" in nightLayout && !nightLayout.enabled) continue;
+        if (controller || target.id === viewer.id ||
+            (viewer.gameRole === target.gameRole &&
+             nightLayout?.target === "same-role" && config?.frameVisibility?.sameRole)) {
+          focusedPlayerIds.push(target.id);
+        }
+      }
+    }
+  }
+  io.to(viewer.id).emit("scene:camera-layout", { focusedPlayerIds });
+}
+
 function syncSceneSettings(): void {
-  for (const viewer of players) sendSceneSettingsTo(viewer);
+  for (const viewer of players) {
+    sendSceneSettingsTo(viewer);
+    sendCameraLayoutTo(viewer);
+  }
   syncVisibleRoleFrames();
 }
 
@@ -1083,6 +1111,11 @@ io.on("connection", (socket) => {
   socket.on("role:notebook:request", () => {
     const receiver = participant(socket.id);
     if (receiver) sendRoleNotebookTo(receiver);
+  });
+
+  socket.on("scene:camera-layout:request", () => {
+    const viewer = participant(socket.id);
+    if (viewer) sendCameraLayoutTo(viewer);
   });
 
   socket.on("game-role:frames:request", () => {

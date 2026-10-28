@@ -135,7 +135,6 @@ export default function RoleNotebook({ phase, ownRoleId, isPlayer }: RoleNoteboo
                   <span>{page + 1} / {roles.length}</span>
                   <button type="button" onClick={() => move(1)} disabled={roles.length < 2} aria-label="Nächste Rolle">❯</button>
                 </nav>
-                <p className="role-notebook__hint">Scrollen oder wischen für weitere Rollen</p>
               </>
             ) : (
               <p className="role-notebook__hint">In dieser Runde sind noch keine Rollen verfügbar.</p>
