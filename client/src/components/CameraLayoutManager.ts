@@ -1,6 +1,10 @@
 import type { PublicPlayer } from "../types/Player";
 
-export const CAMERA_SCALE = 1.2;
+// Größenfaktoren
+export const CAMERA_SCALE = 1.4;
+export const CAMERA_SCALE_SMALL = 1.1;
+const SIDE_MARGIN = 15;
+const SPACING = 1.2;
 
 export type CameraPosition = {
   left: string;
@@ -15,6 +19,39 @@ export type CameraLayout = {
   maxFrameWidth: string;
 };
 
+type Row = { players: PublicPlayer[]; host?: PublicPlayer; dead: boolean };
+type Tile = { player: PublicPlayer; center: number; relativeScale: number; row: number };
+
+function rowSizes(living: number, availableRows: number): number[] {
+  if (!living || availableRows <= 0) return [];
+  if (availableRows === 1 || living <= 3) return [living];
+  if (availableRows >= 3 && living >= 7) {
+    if (living === 7) return [1, 3, 3];
+    if (living === 8) return [2, 3, 3];
+    return [3, 3, living - 6];
+  }
+  if (living === 4) return [2, 2];
+  if (living === 5) return [3, 2];
+  if (living === 6) return [3, 3];
+  if (living === 7) return [3, 4];
+  return [4, living - 4];
+}
+
+function centers(count: number, host: boolean): number[] {
+  if (host) {
+    if (count === 1) return [50];
+    if (count === 2) return [30, 50];
+    if (count === 3) return [27, 50, 73];
+    if (count === 4) return [22, 36, 50, 78];
+    return [22, 36, 50, 64, 78];
+  }
+  if (count === 1) return [50];
+  if (count === 2) return [35, 65];
+  if (count === 3) return [27, 50, 73];
+  if (count === 4) return [22, 40.5, 59.5, 78];
+  return [22, 36, 50, 64, 78];
+}
+
 export function calculateCameraLayout(
   players: readonly PublicPlayer[],
   focusedPlayerIds: readonly string[] = [],
@@ -22,72 +59,91 @@ export function calculateCameraLayout(
   const shown = players.filter(player => player.userRole !== "gamemaster");
   const alive = shown.filter(player => player.userRole === "storyteller" || player.isAlive);
   const dead = shown.filter(player => player.userRole === "player" && !player.isAlive);
-  const width = Math.min(96, (shown.length <= 2 ? 31 : 27) * CAMERA_SCALE);
-  const columnCount = Math.min(3, Math.max(1, Math.floor(99 / (width + 3))));
-  const centers = columnCount === 3 ? [18, 50, 82] : columnCount === 2 ? [25, 75] : [50];
   const host = alive.find(player => player.userRole === "storyteller") ?? alive[0];
-  const focus = new Set(focusedPlayerIds);
-  const remaining = alive.filter(player => player.id !== host?.id);
+  const highlighted = new Set(focusedPlayerIds.filter(id => id !== host?.id));
+  const hasHighlight = alive.some(player => highlighted.has(player.id));
+  const otherAlive = alive.filter(player => player.id !== host?.id);
   const ordered = [
-    ...remaining.filter(player => focus.has(player.id)),
-    ...remaining.filter(player => !focus.has(player.id)),
+    ...otherAlive.filter(player => highlighted.has(player.id)),
+    ...otherAlive.filter(player => !highlighted.has(player.id)),
   ];
 
-  const livingRows = alive.length === 0 ? 0 : columnCount === 3
-    ? Math.ceil(alive.length / 3)
-    : 1 + Math.ceil(remaining.length / columnCount);
-  const deadRows = Math.ceil(dead.length / columnCount);
-  const rows = Math.max(1, livingRows + deadRows);
-  const positions: Record<string, CameraPosition> = {};
+  // Tote: höchstens vier pro Reihe.
+  const deadRows = Math.ceil(dead.length / 4);
+  const livingSizes = rowSizes(alive.length, Math.max(0, 3 - deadRows));
+  const rows: Row[] = livingSizes.map(() => ({ players: [], dead: false }));
 
-  const place = (player: PublicPlayer, row: number, left: number) => {
-    positions[player.id] = {
-      left: `${left}%`,
-      top: `${((row + 0.5) / rows) * 100}%`,
-      width: `${width}%`,
-    };
-  };
-
-  if (host) {
-    if (columnCount === 3) {
-      const centerRow = Math.floor((livingRows - 1) / 2);
-      place(host, centerRow, 50);
-      const slots = Array.from({ length: livingRows * 3 }, (_, index) => ({
-        row: Math.floor(index / 3), col: index % 3,
-      })).filter(slot => slot.row !== centerRow || slot.col !== 1);
-      slots.sort((a, b) => {
-        const distance = (slot: typeof a) =>
-          Math.abs(slot.row - centerRow) * 3 + Math.abs(slot.col - 1);
-        return distance(a) - distance(b) || a.row - b.row || a.col - b.col;
-      });
-      ordered.forEach((player, index) => {
-        const slot = slots[index];
-        if (slot) place(player, slot.row, centers[slot.col]);
-      });
-    } else {
-      place(host, 0, 50);
-      ordered.forEach((player, index) => {
-        const row = 1 + Math.floor(index / columnCount);
-        const inRow = Math.min(columnCount, ordered.length - (row - 1) * columnCount);
-        const center = inRow === 1 ? 50 : centers[index % columnCount];
-        place(player, row, center);
-      });
-    }
+  if (host && rows.length) {
+    rows[0].host = host;
+    rows[0].players = ordered.splice(0, livingSizes[0] - 1);
+  } else if (rows.length) {
+    rows[0].players = ordered.splice(0, livingSizes[0]);
+  }
+  for (let index = 1; index < rows.length; index++) {
+    rows[index].players = ordered.splice(0, livingSizes[index]);
+  }
+  for (let index = 0; index < deadRows; index++) {
+    rows.push({ players: dead.slice(index * 4, (index + 1) * 4), dead: true });
   }
 
-  dead.forEach((player, index) => {
-    const rowIndex = Math.floor(index / columnCount);
-    const inRow = Math.min(columnCount, dead.length - rowIndex * columnCount);
-    const col = index % columnCount;
-    const center = inRow === 1 ? 50 : columnCount === 3 && inRow === 2
-      ? [18, 82][col] : centers[col];
-    place(player, livingRows + rowIndex, center);
+  const rowCount = Math.max(1, rows.length);
+  const tiles: Tile[] = [];
+
+  rows.forEach((row, index) => {
+    const all = row.host ? [row.host, ...row.players] : row.players;
+    const points = centers(all.length, Boolean(row.host));
+    if (row.host) {
+      tiles.push({ player: row.host, center: 50, relativeScale: 1, row: index });
+      const others = points.filter(value => value !== 50)
+        .sort((a, b) => Math.abs(a - 50) - Math.abs(b - 50) || a - b);
+      row.players.forEach((player, i) => tiles.push({
+        player,
+        center: others[i],
+        relativeScale: hasHighlight && !highlighted.has(player.id) ? CAMERA_SCALE_SMALL / CAMERA_SCALE : 1,
+        row: index,
+      }));
+    } else {
+      row.players.forEach((player, i) => tiles.push({
+        player,
+        center: points[i],
+        relativeScale: hasHighlight && !row.dead && !highlighted.has(player.id) ? CAMERA_SCALE_SMALL / CAMERA_SCALE : 1,
+        row: index,
+      }));
+    }
   });
+
+  // Breite an Nachbarn und 70-%-Bereich anpassen.
+  let widthLimit = 22 * CAMERA_SCALE / 1.4;
+  for (const tile of tiles) {
+    widthLimit = Math.min(widthLimit,
+      2 * (tile.center - SIDE_MARGIN) - SPACING,
+      2 * (100 - SIDE_MARGIN - tile.center) - SPACING);
+  }
+  for (let index = 0; index < rows.length; index++) {
+    const rowTiles = tiles.filter(tile => tile.row === index).sort((a, b) => a.center - b.center);
+    for (let i = 1; i < rowTiles.length; i++) {
+      const previous = rowTiles[i - 1];
+      const current = rowTiles[i];
+      widthLimit = Math.min(widthLimit, current.center - previous.center - SPACING);
+    }
+  }
+  const baseWidth = Math.max(0, widthLimit);
+  // 16:9-Kamerabild + Namenszeile.
+  const heightWidth = 100 * 16 / (9 * rowCount);
+  const positions: Record<string, CameraPosition> = {};
+  for (const tile of tiles) {
+    const ratio = tile.relativeScale;
+    positions[tile.player.id] = {
+      left: `${tile.center}%`,
+      top: `${((tile.row + 0.5) / rowCount) * 100}%`,
+      width: `min(${(baseWidth * ratio).toFixed(3)}%, max(0px, calc(${(heightWidth * ratio).toFixed(3)}cqh - ${(40 * ratio).toFixed(1)}px)))`,
+    };
+  }
 
   return {
     positions,
-    rows,
-    rowHeight: `clamp(${124 * CAMERA_SCALE}px, ${19.5 * CAMERA_SCALE}vw, ${232 * CAMERA_SCALE}px)`,
+    rows: rowCount,
+    rowHeight: `calc(100% / ${rowCount})`,
     maxFrameWidth: `${360 * CAMERA_SCALE}px`,
   };
 }
