@@ -10,7 +10,14 @@
   user-select: none;
 }
 
-/* Auswahl wird über den jeweiligen Rollenrahmen gelegt. */
-.camera-frame__selected {
+
+
+/* Block-Overlay liegt über dem Rollenrahmen. */
+.camera-frame__overlay {
   z-index: 3;
+}
+
+/* Auswahl liegt ganz oben. */
+.camera-frame__selected {
+  z-index: 4;
 }

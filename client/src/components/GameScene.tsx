@@ -64,21 +64,17 @@ export default function GameScene({
       setRoleError(null);
     };
     const onError = (message: string) => setRoleError(message);
-    const onRevealed = (event: { name: string; roleName: string }) =>
-      setRoleAnnouncement(`${event.name} ist ${event.roleName}.`);
     const onRoleEliminated = (event: { name: string }) =>
       setRoleAnnouncement(`${event.name} wurde eliminiert.`);
     const request = () => socket.emit("role:state:request");
     socket.on("role:state", onState);
     socket.on("role:error", onError);
-    socket.on("role:revealed", onRevealed);
     socket.on("role:eliminated", onRoleEliminated);
     socket.on("connect", request);
     request();
     return () => {
       socket.off("role:state", onState);
       socket.off("role:error", onError);
-      socket.off("role:revealed", onRevealed);
       socket.off("role:eliminated", onRoleEliminated);
       socket.off("connect", request);
     };
@@ -157,11 +153,18 @@ export default function GameScene({
       setLovers({ markedPlayerIds: data?.markedPlayerIds ?? [], partnerName: data?.partnerName ?? null });
     const onVotes = (data: { entries?: { targetId: string; confirmed: boolean }[] }) =>
       setWerewolfVotes(data?.entries ?? []);
+    const request = () => {
+      socket.emit("lovers:state:request");
+      socket.emit("werewolf-vote:request");
+    };
     socket.on("lovers:state", onLovers);
     socket.on("werewolf-vote:status", onVotes);
+    socket.on("connect", request);
+    request();
     return () => {
       socket.off("lovers:state", onLovers);
       socket.off("werewolf-vote:status", onVotes);
+      socket.off("connect", request);
     };
   }, []);
 

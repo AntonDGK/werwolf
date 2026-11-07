@@ -52,12 +52,13 @@ type Props = {
   maskNightCameras?: boolean;
 };
 
-function CameraTile({ player, own, stream, approved, frameName, selected, canVote, onVote, voteCount, wolfVotes, loverMarked, nightMasked, scaleClass }: {
+function CameraTile({ player, own, stream, approved, frameName, frameOverlayName, selected, canVote, onVote, voteCount, wolfVotes, loverMarked, nightMasked, scaleClass }: {
   player: PublicPlayer;
   own: boolean;
   stream: MediaStream | undefined | null;
   approved: boolean;
   frameName: string;
+  frameOverlayName?: string;
   selected: boolean;
   canVote: boolean;
   onVote: () => void;
@@ -76,10 +77,10 @@ function CameraTile({ player, own, stream, approved, frameName, selected, canVot
         </div>
       )}
       {nightMasked && <div className="camera-layer__night-mask" aria-hidden="true" />}
-      <CameraFrame filename={frameName} selected={selected} />
-      {loverMarked && loverIcon && (
-        <img className="camera-layer__lover-icon" src={loverIcon} alt="Verliebt" draggable={false} />
-      )}
+      <CameraFrame filename={frameName} overlayFilename={frameOverlayName} selected={selected} />
+      {loverMarked && (loverIcon
+        ? <img className="camera-layer__lover-icon" src={loverIcon} alt="Verliebt" draggable={false} />
+        : <span className="camera-layer__lover-icon" aria-label="Verliebt">♥</span>)}
       {wolfVotes.length > 0 && (
         <div className="camera-layer__vote-icons camera-layer__vote-icons--werewolf" aria-label="Werwolf-Stimmen">
           {wolfVotes.slice(0, 6).map((entry, index) => (
@@ -129,10 +130,7 @@ export default function CameraLayer({ players, roleAction = null, visibleFrames 
     const stream = own ? localStream : remoteStreams[player.id];
     const approved = approvedIds.includes(player.id);
     const nightMasked = phase === "night" && maskNightCameras && !own;
-    let frameName = visibleFrames[player.id] ?? "frame-default.png";
-    if (nightMasked || (!own && !approved)) frameName = "frame-blocked.png";
-    else if (!player.isAlive) frameName = "frame-dead.png";
-    else if (player.userRole === "storyteller") frameName = "frame-storyteller.png";
+    let frameName = visibleFrames[player.id] ?? "frame-default.png";  
 
     const nightSelectable = Boolean(phase === "night" && viewerRole === "player" &&
       roleAction?.active && !roleAction.confirmed && roleAction.targetIds.includes(player.id));
@@ -146,7 +144,7 @@ export default function CameraLayer({ players, roleAction = null, visibleFrames 
       : 0;
 
     return [player.id, {
-      player, own, stream, approved, frameName, canVote: votable, voteCount,
+      player, own, stream, approved, frameName, frameOverlayName, canVote: votable, voteCount,
       wolfVotes: phase === "night" ? werewolfVotes.filter(v => v.targetId === player.id) : [],
       loverMarked: loverMarkedPlayerIds.includes(player.id),
       selected: phase === "night"

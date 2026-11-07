@@ -14,19 +14,24 @@ function frameUrl(filename: string): string | undefined {
 
 type Props = {
   filename?: string;
+  overlayFilename?: string;
   selected?: boolean;
 };
 
 export default function CameraFrame({
   filename = "frame-default.png",
+  overlayFilename,
   selected = false,
 }: Props) {
   const src = frameUrl(filename) ?? frameUrl("frame-default.png");
+  const overlaySrc = overlayFilename ? frameUrl(overlayFilename) : undefined;
   const selectedSrc = selected ? frameUrl("frame-selected.png") : undefined;
 
   return (
     <>
       {src && <img className="camera-frame__image" src={src}
+        alt="" aria-hidden="true" draggable={false} />}
+      {overlaySrc && <img className="camera-frame__image camera-frame__overlay" src={overlaySrc}
         alt="" aria-hidden="true" draggable={false} />}
       {selectedSrc && <img className="camera-frame__image camera-frame__selected"
         src={selectedSrc} alt="" aria-hidden="true" draggable={false} />}
