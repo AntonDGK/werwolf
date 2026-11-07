@@ -28,15 +28,17 @@ export function decideWinCondition(
     ({ winner: win.winner, winnerLabel: win.winnerLabel, checkpoint, werewolves, villagers });
   const wins: { winner: string; winnerLabel?: string; priority: number }[] = [];
 
-  if (lovers && living.length === 2 && lovers.every(id => living.some(player => player.id === id))) {
-    const pair = lovers.map(id => living.find(player => player.id === id)!);
-    if (pair.some(player => teamFor(player.roleId) === "werewolves") &&
-        pair.some(player => teamFor(player.roleId) !== "werewolves")) {
-      wins.push({ winner: "lovers", priority: 100 });
-    }
+  const livingLovers = lovers?.map(id => living.find(player => player.id === id)) ?? [];
+  const mixedLoversAlive = livingLovers.length === 2 && livingLovers.every(Boolean) &&
+    livingLovers.some(player => teamFor(player!.roleId) === "werewolves") &&
+    livingLovers.some(player => teamFor(player!.roleId) !== "werewolves");
+
+  if (mixedLoversAlive && living.length === 2) {
+    wins.push({ winner: "lovers", priority: 100 });
   }
   if (werewolves === 0) wins.push({ winner: "village", priority: 0 });
-  else if (checkpoint === "day-vote" ? werewolves >= villagers : werewolves > villagers) {
+  else if (!mixedLoversAlive &&
+    (checkpoint === "day-vote" ? werewolves >= villagers : werewolves > villagers)) {
     wins.push({ winner: "werewolves", priority: 0 });
   }
   for (const entry of options.specialWins ?? []) {
