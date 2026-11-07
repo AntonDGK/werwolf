@@ -213,8 +213,6 @@ export default function GameScene({
                 gameResult.winner === "lovers" ? "💞 Die Verliebten gewinnen!" :
                 gameResult.winner === "village" ? "🏡 Das Dorf gewinnt!" :
                 `🏆 ${gameResult.winnerLabel ?? gameResult.winner} gewinnt!`}</strong>
-              <small>Mit × schließen und alle Rollen ansehen.</small>
-              <small>Die nächste Runde beginnt erst, wenn der Erzähler „Weiter“ drückt.</small>
             </div>
           </div>
         )}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode, TouchEvent, WheelEvent } from "react";
 import type { GamePhase } from "../types/Types";
 import { socket } from "../socket";
@@ -117,7 +118,7 @@ export default function RoleNotebook({ phase, ownRoleId, isPlayer }: RoleNoteboo
         title="Rollen-Notizbuch öffnen" onClick={() => { setOpen(true); socket.emit("role:notebook:request"); }}>
         <img src={bookIcon} alt="" draggable={false} />
       </button>
-      {open && (
+      {open && createPortal(
         <div className="role-notebook__backdrop" onClick={() => setOpen(false)}>
           <section ref={dialogRef} tabIndex={-1} className="role-notebook__dialog" role="dialog"
             aria-modal="true" aria-labelledby="role-notebook-title"
@@ -163,7 +164,8 @@ export default function RoleNotebook({ phase, ownRoleId, isPlayer }: RoleNoteboo
               <p className="role-notebook__hint">In dieser Runde sind noch keine Rollen verfügbar.</p>
             )}
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

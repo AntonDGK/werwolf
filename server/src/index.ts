@@ -255,7 +255,7 @@ function applyRoleEffects(effects: readonly RoleEffect[]): void {
 
 function completeCurrentRoleStep(): void {
   const phase = currentRoleActionPhase();
-  if (!phase) return;
+  if (!phase || phase.stepId === "night-closing") return;
   const participants = roundRolePlayers();
   roleManager.completeStep(phase, participants);
   if (phase.period === "night" && phase.stepId !== null) {
@@ -419,6 +419,7 @@ function controllerPhaseStatus() {
     ).map((entry) => ({
       id: entry.id,
       label: entry.id === "lovers-awake" ? "Verliebte erwachen" :
+        entry.id === "night-closing" ? "Nacht klingt aus" :
         entry.id === "werewolves" ? "Werwölfe" :
         entry.roleIds.map((id) => roleManager.getRole(id)?.config.name ?? id).join(" / "),
     })),
@@ -479,7 +480,7 @@ function finishIfWinner(checkpoint: WinCheckpoint): boolean {
 
 const sceneSettings = {
   hideControllerRoleFramesDuringDay: false,
-  blockNightOutsideOwnPhase: false,
+  blockNightOutsideOwnPhase: true,
 };
 
 function sendSceneSettingsTo(viewer: Player): void {
@@ -497,7 +498,9 @@ function sendSceneSettingsTo(viewer: Player): void {
       !(sceneSettings.hideControllerRoleFramesDuringDay && phaseManager.currentPhase === "day"),
     maskNightCameras: loversAwake && viewer.userRole === "player"
       ? true : isNight && sceneSettings.blockNightOutsideOwnPhase && !canSeeNightCameras,
-    nightVisiblePlayerIds: loversAwake && partner ? [partner.id] : [],
+    nightVisiblePlayerIds: loversAwake && partner
+      ? [partner.id, ...players.filter(p => p.userRole === "storyteller").map(p => p.id)]
+      : [],
   });
   if (viewer.userRole === "gamemaster") {
     io.to(viewer.id).emit("scene:admin-settings", { ...sceneSettings });
@@ -513,7 +516,8 @@ function sendCameraLayoutTo(viewer: Player): void {
       (viewer.userRole === "player" && pair.includes(accountKey(viewer.name))));
     if (pair && visible) {
       for (const target of players) {
-        if (target.userRole === "player" && pair.includes(accountKey(target.name))) {
+        if ((target.userRole === "player" && pair.includes(accountKey(target.name))) ||
+            target.userRole === "storyteller") {
           focusedPlayerIds.push(target.id);
         }
       }
@@ -626,7 +630,7 @@ function syncVisibleRoleFrames(): void {
 }
 
 function sendLoverStateTo(receiver: Player): void {
-  const canSee = receiver.userRole !== "player" ||
+  const canSee = phaseManager.currentPhase === "finished" || receiver.userRole !== "player" ||
     (roundParticipantKeys.has(accountKey(receiver.name)) &&
       (receiver.gameRole === "cupid" || relationships.getPartner(accountKey(receiver.name)) !== null));
   const keys = canSee ? relationships.getLovers() ?? [] : [];
@@ -934,6 +938,7 @@ function setGamePhase(nextPhase: GamePhase): void {
     syncDayVotes();
   }
   syncSceneSettings();
+  if (status.phase === "finished") syncLoverStates();
   syncRoleNotebooks();
   for (const recipient of players) io.to(recipient.id).emit("phaseChanged", status.phase);
   broadcastControllerPhaseStatus();
@@ -1471,6 +1476,7 @@ io.on("connection", (socket) => {
     if (phase === "preparation") return setGamePhase("role-intro");
     if (phase === "role-intro") return setGamePhase("night");
     if (phase === "night") {
+      if (phaseManager.getStatus().step === "night-closing") return setGamePhase("day");
       completeCurrentRoleStep();
       const next = phaseManager.nextStep();
       roleManager.resetConfirmations();
@@ -1509,6 +1515,10 @@ io.on("connection", (socket) => {
     const controller = participant(socket.id);
     if (controller?.userRole !== "gamemaster" && controller?.userRole !== "storyteller") return;
     if (dayIntroPending) return;
+    if (phaseManager.currentPhase === "night" && phaseManager.getStatus().step === "night-closing") {
+      setGamePhase("day");
+      return;
+    }
     completeCurrentRoleStep();
     phaseManager.nextStep();
     roleManager.resetConfirmations();

@@ -65,14 +65,21 @@ export class PhaseManager {
     players: readonly Pick<Player, "userRole" | "gameRole" | "isAlive">[],
   ): ScheduledRoleStep[] {
     const steps = this.roleManager.createSteps(period, round, players, this.usedOnce);
-    if (period !== "night" || round !== 1) return steps;
-    const cupidIndex = steps.findIndex(step => step.roleIds.includes("cupid"));
-    if (cupidIndex < 0) return steps;
-    return [
-      ...steps.slice(0, cupidIndex + 1),
-      { id: "lovers-awake", order: steps[cupidIndex].order, roleIds: [] },
-      ...steps.slice(cupidIndex + 1),
-    ];
+    if (period !== "night") return steps;
+    if (round === 1) {
+      const cupidIndex = steps.findIndex(step => step.roleIds.includes("cupid"));
+      if (cupidIndex >= 0) {
+        steps.splice(cupidIndex + 1, 0, {
+          id: "lovers-awake", order: steps[cupidIndex].order, roleIds: [],
+        });
+      }
+    }
+    steps.push({
+      id: "night-closing",
+      order: (steps[steps.length - 1]?.order ?? 0) + 1,
+      roleIds: [],
+    });
+    return steps;
   }
 
   syncDaySteps(players: readonly Pick<Player, "userRole" | "gameRole" | "isAlive">[]): void {

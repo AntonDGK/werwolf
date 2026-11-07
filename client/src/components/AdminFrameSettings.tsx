@@ -8,7 +8,7 @@ type Settings = {
 };
 const initial: Settings = {
   hideControllerRoleFramesDuringDay: false,
-  blockNightOutsideOwnPhase: false,
+  blockNightOutsideOwnPhase: true,
 };
 
 export default function AdminFrameSettings() {
