@@ -130,7 +130,17 @@ export default function CameraLayer({ players, roleAction = null, visibleFrames 
     const stream = own ? localStream : remoteStreams[player.id];
     const approved = approvedIds.includes(player.id);
     const nightMasked = phase === "night" && maskNightCameras && !own;
-    let frameName = visibleFrames[player.id] ?? "frame-default.png";  
+    const blocked = nightMasked || (!own && !approved);
+
+    let frameName = visibleFrames[player.id] ?? "frame-default.png";
+
+    if (player.userRole === "storyteller") {
+      frameName = "frame-storyteller.png";
+    } else if (!blocked && !player.isAlive) {
+      frameName = "frame-dead.png";
+    }
+
+    const frameOverlayName = blocked ? "frame-blocked.png" : undefined;
 
     const nightSelectable = Boolean(phase === "night" && viewerRole === "player" &&
       roleAction?.active && !roleAction.confirmed && roleAction.targetIds.includes(player.id));
