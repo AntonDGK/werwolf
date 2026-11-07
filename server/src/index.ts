@@ -11,7 +11,10 @@ import type { RoleActionPhase, RoleActionPlayer, RoleEffect } from "./roles/Role
 import { resolveRoleEffects } from "./roles/RoleEffectResolver";
 import { PhaseManager } from "./game/PhaseManager";
 import { DayVoteManager } from "./game/DayVoteManager";
-import { decideWinner, type WinDecision, type WinCheckpoint } from "./game/GameEndManager";
+import { decideWinCondition, type WinDecision, type WinCheckpoint } from "./game/WinConditionManager";
+import { RelationshipManager } from "./game/RelationshipManager";
+import { GameAnimationManager } from "./game/GameAnimationManager";
+import { werewolfVotes } from "./roles/werewolf/actions";
 
 const app = express();
 const httpServer = createServer(app);
@@ -118,6 +121,8 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const roleManager = new RoleManager();
 const nightState = new NightStateManager();
+const relationships = new RelationshipManager();
+const gameAnimations = new GameAnimationManager((id, event) => io.to(id).emit("animation:play", event));
 const phaseManager = new PhaseManager(roleManager);
 const dayVotes = new DayVoteManager();
 
@@ -157,15 +162,54 @@ function roundRolePlayers(): RoleActionPlayer[] {
   }));
 }
 
+function applyRelationshipLinks(effects: readonly RoleEffect[]): void {
+  let changed = false;
+  const members = new Set(roundRolePlayers().filter(p => p.isAlive).map(p => p.id));
+  for (const effect of effects) {
+    if (effect.type !== "link-lovers") continue;
+    const [first, second] = effect.targetIds;
+    if (members.has(first) && members.has(second)) {
+      changed = relationships.setLovers(first, second) || changed;
+    }
+  }
+  if (changed) {
+    syncLoverStates();
+    const pair = relationships.getLovers();
+    if (pair) {
+      const participantSocket = (key: string) => players.find(p =>
+        p.userRole === "player" && accountKey(p.name) === key)?.id;
+      const cupids = roundRolePlayers().filter(p => p.gameRole === "cupid" && p.isAlive);
+      const source = cupids.length === 1 ? cupids[0] : undefined;
+      const targets = pair.map(participantSocket).filter((id): id is string => Boolean(id));
+      const isCupid = (p: Player) => source !== undefined &&
+        p.userRole === "player" && accountKey(p.name) === source.id;
+      const controllers = players.filter(p => isController(p) || isCupid(p));
+      const lovers = players.filter(p => p.userRole === "player" &&
+        pair.includes(accountKey(p.name)) && !isCupid(p));
+      gameAnimations.play("cupid-arrow", targets, controllers.map(p => p.id),
+        source ? participantSocket(source.id) : undefined);
+      gameAnimations.play("cupid-arrow", targets, lovers.map(p => p.id));
+    }
+  }
+}
+
 function applyRoleEffects(effects: readonly RoleEffect[]): void {
+  applyRelationshipLinks(effects);
   const roundPlayers = roundRolePlayers();
   const resolved = resolveRoleEffects(effects, roundPlayers);
+  const casualties = relationships.cascadeDeaths(resolved.eliminated, roundPlayers);
+  const deathTargets = casualties.filter(death => roundPlayers.some(p =>
+    p.id === death.targetId && p.isAlive)).map(death =>
+    players.find(p => p.userRole === "player" && accountKey(p.name) === death.targetId)?.id,
+  ).filter((id): id is string => Boolean(id));
+  gameAnimations.play("player-death", deathTargets, players.map(p => p.id));
   let eliminated = false;
 
-  for (const effect of resolved.eliminated) {
-    const target = roundPlayers.find(p => p.id === effect.targetId);
+  for (const { targetId, reason } of casualties) {
+    const target = roundPlayers.find(p => p.id === targetId && p.isAlive);
     if (!target) continue;
     aliveByAccount.set(target.id, false);
+    dayVotes.removeAccount(target.id);
     const online = players.find(p => p.userRole === "player" && accountKey(p.name) === target.id);
     if (online) updatePlayer(online.id, { isAlive: false });
     else roleManager.notifyDeath(target);
@@ -174,8 +218,11 @@ function applyRoleEffects(effects: readonly RoleEffect[]): void {
       io.to(receiver.id).emit("role:eliminated", {
         playerId: online?.id ?? null,
         name: playerAccounts.get(target.id)?.name ?? "Spieler",
-        reason: effect.reason,
+        reason,
       });
+      if (reason === "day-vote" || reason === "lovers") {
+        io.to(receiver.id).emit("day-vote:eliminated", { playerId: online?.id ?? null, reason });
+      }
     }
   }
 
@@ -202,8 +249,11 @@ function completeCurrentRoleStep(): void {
   const participants = roundRolePlayers();
   roleManager.completeStep(phase, participants);
   if (phase.period === "night" && phase.stepId !== null) {
-    nightState.completeStep(phase.stepId, () =>
-      roleManager.runNightStepEnd(phase, participants, nightState));
+    nightState.completeStep(phase.stepId, () => {
+      const effects = roleManager.runNightStepEnd(phase, participants, nightState);
+      applyRelationshipLinks(effects);
+      return effects;
+    });
   }
 }
 
@@ -240,6 +290,7 @@ function sendRoleState(receiver: Player): void {
   const inactive = {
     active: false, requiresConfirmation: false, confirmed: false,
     hasSelection: false, selectedTargetId: null as string | null,
+    selectedTargetIds: [] as string[],
     targetIds: [] as string[], buttons: [] as { id: string; label: string; disabled: boolean }[],
     nightInfo: null as { werewolfTargetId: string | null } | null,
   };
@@ -267,8 +318,10 @@ function sendRoleState(receiver: Player): void {
       werewolfTargetId: action.nightInfo.werewolfTargetId
         ? socketIdForAccount(action.nightInfo.werewolfTargetId) : null,
     } : null,
-    hasSelection: action.selectionId !== null,
+    hasSelection: action.selectionIds.length > 0,
     selectedTargetId: action.selectionId ? socketIdForAccount(action.selectionId) : null,
+    selectedTargetIds: action.selectionIds.map(socketIdForAccount)
+      .filter((id): id is string => id !== null),
     targetIds: action.allowedTargetIds
       .map(socketIdForAccount)
       .filter((id): id is string => id !== null),
@@ -277,6 +330,7 @@ function sendRoleState(receiver: Player): void {
 
 function syncRoleStates(): void {
   for (const player of players) sendRoleState(player);
+  syncWerewolfVotes();
 }
 
 function distributionStatus() {
@@ -396,10 +450,15 @@ function finishIfWinner(checkpoint: WinCheckpoint): boolean {
   const participants = [...roundParticipantKeys]
     .filter(key => playerAccounts.has(key))
     .map(key => ({
+      id: key,
       roleId: gameRolesByAccount.get(key) ?? null,
       isAlive: aliveByAccount.get(key) ?? true,
     }));
-  const decision = decideWinner(participants, checkpoint);
+  const lovers = relationships.getLovers();
+  const decision = decideWinCondition(participants, checkpoint, lovers, {
+    getTeam: roleId => roleManager.getTeam(roleId),
+    specialWins: roleManager.getCustomWinCandidates(participants, checkpoint, lovers),
+  });
   if (!decision) return false;
   gameResult = decision;
   setGamePhase("finished");
@@ -437,7 +496,7 @@ function sendCameraLayoutTo(viewer: Player): void {
       viewer.gameRole !== null && activeRoles.includes(viewer.gameRole);
     if (controller || canFocusOwnRole) {
       for (const target of players) {
-        if (target.userRole !== "player" || !target.isAlive || !target.gameRole ||
+        if (target.userRole !== "player" || !target.gameRole ||
             !activeRoles.includes(target.gameRole)) continue;
         const config = roleManager.getRole(target.gameRole)?.config;
         const nightLayout = config?.cameraLayout?.night?.active;
@@ -502,7 +561,9 @@ function sendRoleNotebookTo(receiver: Player): void {
      phaseManager.currentPhase === "day" ||
      phaseManager.currentPhase === "finished");
   const roles = inRound
-    ? roleManager.getNotebookEntries(roundRolePlayers().map(player => player.gameRole))
+    ? roleManager.getNotebookEntries(roundRolePlayers().map(player => player.gameRole),
+        receiver.userRole === "player" ? receiver.gameRole : null,
+        receiver.userRole !== "player")
     : [];
   io.to(receiver.id).emit("role:notebook", roles);
 }
@@ -529,6 +590,45 @@ function syncVisibleRoleFrames(): void {
   for (const receiver of players) sendVisibleRoleFramesTo(receiver);
 }
 
+function sendLoverStateTo(receiver: Player): void {
+  const keys = receiver.userRole === "player" && relationships.getPartner(accountKey(receiver.name))
+    ? relationships.getLovers() ?? []
+    : receiver.userRole !== "player" ? relationships.getLovers() ?? [] : [];
+  const markedPlayerIds = keys.map(key =>
+    players.find(p => p.userRole === "player" && accountKey(p.name) === key)?.id,
+  ).filter((id): id is string => Boolean(id));
+  const partnerKey = receiver.userRole === "player"
+    ? relationships.getPartner(accountKey(receiver.name)) : null;
+  io.to(receiver.id).emit("lovers:state", {
+    markedPlayerIds,
+    partnerName: partnerKey ? playerAccounts.get(partnerKey)?.name ?? null : null,
+  });
+}
+
+function syncLoverStates(): void {
+  for (const receiver of players) sendLoverStateTo(receiver);
+}
+
+function sendWerewolfVotesTo(receiver: Player): void {
+  const wolfPhase = phaseManager.currentPhase === "night" &&
+    phaseManager.getActiveRoleIds().some(id => roleManager.isInNightGroup(id, "werewolves"));
+  const permitted = receiver.userRole !== "player" ||
+    (receiver.userRole === "player" && receiver.isAlive &&
+      roundParticipantKeys.has(accountKey(receiver.name)) &&
+      roleManager.isInNightGroup(receiver.gameRole, "werewolves"));
+  const entries = wolfPhase && permitted ? werewolfVotes.getEntries().flatMap(([voterId, targetKey]) => {
+    if (!roundParticipantKeys.has(voterId) || !roundParticipantKeys.has(targetKey) ||
+        aliveByAccount.get(voterId) === false) return [];
+    const targetId = players.find(p => p.userRole === "player" && accountKey(p.name) === targetKey)?.id;
+    return targetId ? [{ targetId, confirmed: roleManager.isConfirmed(voterId) }] : [];
+  }) : [];
+  io.to(receiver.id).emit("werewolf-vote:status", { entries });
+}
+
+function syncWerewolfVotes(): void {
+  for (const receiver of players) sendWerewolfVotesTo(receiver);
+}
+
 function syncGameRoles(): void {
   const available = roleManager.getPublicCatalog();
   const byId = new Map(available.map((entry) => [entry.id, entry]));
@@ -546,8 +646,10 @@ function syncGameRoles(): void {
     io.to(receiver.id).emit("game-role:self", assigned
       ? { roleId: assigned.id, name: assigned.name }
       : { roleId: null, name: null });
-    const teammates = receiver.userRole === "player" && receiver.gameRole === "werewolf"
-      ? players.filter((p) => p.userRole === "player" && p.gameRole === "werewolf" && p.id !== receiver.id)
+    const teammates = receiver.userRole === "player" &&
+      roleManager.isInNightGroup(receiver.gameRole, "werewolves")
+      ? players.filter((p) => p.userRole === "player" &&
+          roleManager.isInNightGroup(p.gameRole, "werewolves") && p.id !== receiver.id)
           .map((p) => ({ id: p.id, name: p.name }))
       : [];
     io.to(receiver.id).emit("game-role:teammates", teammates);
@@ -587,21 +689,10 @@ function closeAndRevealDayVote(): void {
   dayVotes.close(playerAccounts, dayVoteWeight);
   const winnerKey = dayVotes.getUniqueWinner(playerAccounts);
   if (winnerKey !== null) {
-    aliveByAccount.set(winnerKey, false);
-    const target = players.find(
-      p => p.userRole === "player" && accountKey(p.name) === winnerKey,
-    );
-    if (target) {
-      updatePlayer(target.id, { isAlive: false });
-      broadcastPlayers();
-      for (const viewer of players) {
-        io.to(viewer.id).emit("day-vote:eliminated", { playerId: target.id, reason: "day-vote" });
-      }
-      finishIfWinner("day-vote");
-      return;
-    }
+    applyRoleEffects([{ type: "eliminate", targetId: winnerKey, reason: "day-vote" }]);
   }
   syncDayVotes();
+  finishIfWinner("day-vote");
 }
 
 function broadcastPlayers(): void {
@@ -622,6 +713,7 @@ function broadcastPlayers(): void {
   broadcastAccountList();
   syncGameRoles();
   syncDayVotes();
+  syncLoverStates();
   syncSceneSettings();
   syncDistributionStatus();
   syncRoleStates();
@@ -704,12 +796,15 @@ function setGamePhase(nextPhase: GamePhase): void {
   }
   if (previousPhase === "day" && nextPhase === "night") {
     applyRoleEffects(roleManager.runEvent("onDayEnd", roundRolePlayers(), phaseManager.getStatus().round));
+    if (dayVotes.currentState === "closed" && finishIfWinner("day-vote")) return;
   }
   if (nextPhase === "lobby") {
     nightState.reset();
     cancelAutomaticRestart();
     gameResult = null;
     roundParticipantKeys.clear();
+    relationships.reset();
+    syncLoverStates();
     startedWithWerewolves = false;
   }
   if ((nextPhase === "night" || nextPhase === "day") &&
@@ -720,7 +815,7 @@ function setGamePhase(nextPhase: GamePhase): void {
       if (p.userRole === "player") roundParticipantKeys.add(accountKey(p.name));
     }
     startedWithWerewolves = [...roundParticipantKeys].some(
-      key => gameRolesByAccount.get(key) === "werewolf",
+      key => roleManager.getTeam(gameRolesByAccount.get(key) ?? null) === "werewolves",
     );
   }
   if (nextPhase !== "finished" && nextPhase !== "lobby" && previousPhase === "finished") {
@@ -745,6 +840,7 @@ function setGamePhase(nextPhase: GamePhase): void {
     }
     if (status.phase === "day") {
       applyRoleEffects(roleManager.runEvent("onDayStart", roundRolePlayers(), status.round));
+      if (finishIfWinner("night-end")) return;
     }
     if (status.phase === "lobby") {
       aliveByAccount.clear();
@@ -1172,9 +1268,12 @@ io.on("connection", (socket) => {
     if (typeof playerId !== "string" || typeof isAlive !== "boolean") return;
     const target = participant(playerId);
     if (!target || target.userRole !== "player") return;
-    aliveByAccount.set(accountKey(target.name), isAlive);
-    updatePlayer(target.id, { isAlive });
-    if (!isAlive) dayVotes.removeAccount(accountKey(target.name));
+    if (!isAlive && roundParticipantKeys.has(accountKey(target.name))) {
+      applyRoleEffects([{ type: "eliminate", targetId: accountKey(target.name), reason: "admin" }]);
+    } else {
+      aliveByAccount.set(accountKey(target.name), isAlive);
+      updatePlayer(target.id, { isAlive });
+    }
     broadcastPlayers();
     broadcastControllerPhaseStatus();
     sendRoleProgress();
@@ -1319,6 +1418,7 @@ io.on("connection", (socket) => {
     );
     socket.emit("role:selection", { targetId: targetOnline?.id ?? null });
     sendRoleState(actor);
+    syncWerewolfVotes();
   });
 
   // Auswahl sperren und Fortschritt nur an Spielleitung senden.
@@ -1336,6 +1436,7 @@ io.on("connection", (socket) => {
     socket.emit("role:confirmed");
     sendRoleState(actor);
     sendRoleProgress();
+    syncWerewolfVotes();
   });
 
   // Zentraler Rollenbutton

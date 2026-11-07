@@ -67,6 +67,9 @@ export const actions: RoleActions = {
     return [];
   },
 
+  // Eigener Sieg: checkpoint, players, lovers
+  // checkWin: ({ players, checkpoint }) => false,
+
   // Tagesstimme: 1 = normal, 2 = doppelt
   getDayVoteWeight: (_actorId) => 1,
 

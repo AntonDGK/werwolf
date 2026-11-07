@@ -13,6 +13,12 @@ export const beispielConfig = {
 
 Mit Leerzeilen lassen sich Absätze trennen.`,
   },
+  // team: "village" | "werewolves" | "neutral"
+  // nightGroup: "werewolves"
+  // visibleAs: "werewolf"
+  // winCondition: "special-solo"
+  // winPriority: 50
+  // winLabel: "Spezialrolle"
   frame: "frame-beispiel.png", // Datei in client/src/assets/frames/
   frameVisibility: {
     sameRole: false,           // Gleiche Rolle sieht Rahmen?

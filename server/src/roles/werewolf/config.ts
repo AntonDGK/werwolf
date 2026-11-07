@@ -10,6 +10,8 @@ export const werewolfConfig = {
 ++Ihr Ziel:++ Die Dorfbewohner besiegen.`,
   },
   frame: "frame-werewolf.png",
+  team: "werewolves",
+  nightGroup: "werewolves",
   frameVisibility: {
     sameRole: true,
   },
@@ -45,6 +47,7 @@ export const werewolfConfig = {
   targeting: {
     allowSelfTarget: false,
     allowSameRoleTarget: false,
+    allowSameNightGroupTarget: false,
     onlyAliveTargets: true,
   },
 

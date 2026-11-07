@@ -1,4 +1,4 @@
-/* Kamera-Bereich ohne Scrollen */
+/* Szenenfläche */
 .game-scene.game-scene {
   height: 100vh;
   height: 100dvh;
@@ -17,20 +17,60 @@
 .game-scene__header,
 .game-scene__footer { flex-shrink: 0; }
 
+/* Layout hier anpassen */
 .camera-layer {
-  position: relative;
-  width: 100%;
+  --camera-scale: 1.4;
+  --camera-scale-small: 1.1;
+  --camera-base-size: 240px;
+  --camera-gap: clamp(4px, 0.8vw, 12px);
+  --camera-row-gap: clamp(4px, 1vh, 12px);
+  --camera-label-height: 30px;
+
+  display: grid;
+  grid-template-rows: repeat(var(--camera-rows, 1), minmax(0, 1fr));
+  gap: var(--camera-row-gap);
+  width: 70%;
   height: 100%;
   min-height: 0;
   margin-inline: auto;
   container-type: size;
 }
-.camera-layer__frame {
-  position: absolute;
-  transform: translate(-50%, -50%);
+
+.camera-layer__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--camera-gap);
   min-width: 0;
   min-height: 0;
-  max-width: var(--camera-max-frame-width, 504px);
+  width: 100%;
+}
+
+/* Highlight, Nicht-Highlight, Tote */
+.camera-layer__group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--camera-gap);
+  min-width: 0;
+  min-height: 0;
+}
+
+.camera-layer__group--highlight { }
+.camera-layer__group--nothighlight { }
+.camera-layer__group--dead { }
+
+/* Gemeinsame Kamera */
+.camera-layer__frame {
+  --camera-fit: min(
+    calc((100cqw - (var(--camera-tiles) - 1) * var(--camera-gap)) / var(--camera-tiles)),
+    calc((100cqh / var(--camera-rows) - var(--camera-label-height) - var(--camera-row-gap)) * 16 / 9)
+  );
+
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
   border: none;
   border-radius: 0;
   padding: 0;
@@ -39,8 +79,22 @@
   color: inherit;
   font: inherit;
   text-align: inherit;
-  transition: left 360ms ease, top 360ms ease, width 360ms ease;
+  transition: width 300ms ease;
 }
+
+/* Normale und aktive Kamera */
+.camera_scale {
+  width: min(calc(var(--camera-base-size) * var(--camera-scale)), var(--camera-fit));
+}
+
+/* Andere Spieler beim Highlight */
+.camera_scale_small {
+  width: min(
+    calc(var(--camera-base-size) * var(--camera-scale-small)),
+    calc(var(--camera-fit) * var(--camera-scale-small) / var(--camera-scale))
+  );
+}
+
 @media (prefers-reduced-motion: reduce) {
   .camera-layer__frame { transition: none; }
 }
@@ -121,3 +175,20 @@
   color: #fff8db;
   text-shadow: 0 1px 4px #111;
 }
+
+/* Verliebte rechts */
+.camera-layer__lover-icon {
+  position: absolute;
+  z-index: 6;
+  top: 50%;
+  right: -12%;
+  width: clamp(20px, 3vw, 40px);
+  height: auto;
+  transform: translateY(-50%);
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* Werwolf-Stimmen */
+.camera-layer__vote-icons--werewolf { bottom: 6%; }
+.camera-layer__vote--pending { opacity: .45; }

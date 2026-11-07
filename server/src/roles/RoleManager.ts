@@ -19,6 +19,9 @@ import type {
   RoleModule,
   RoleNightInfo,
   RoleTiming,
+  RoleTeam,
+  RoleWinCheckpoint,
+  RoleWinContext,
 } from "./RoleTypes";
 
 export type ScheduledRoleStep = {
@@ -41,6 +44,11 @@ export class RoleManager {
       }
       this.roles.set(key, entry);
     }
+    for (const { config } of this.roles.values()) {
+      if (config.visibleAs && config.visibleAs !== "villager" && !this.roles.has(config.visibleAs)) {
+        throw new Error(`Unbekannte sichtbare Rolle: ${config.visibleAs}`);
+      }
+    }
   }
 
   isValidRoleId(input: unknown): input is RoleId {
@@ -49,6 +57,55 @@ export class RoleManager {
 
   getRole(id: RoleId): RoleModule | undefined {
     return this.roles.get(id);
+  }
+
+  getTeam(id: RoleId | null): RoleTeam {
+    return (id && this.roles.get(id)?.config.team) || "village";
+  }
+
+  getNightGroup(id: RoleId | null): string | null {
+    if (!id) return null;
+    const config = this.roles.get(id)?.config;
+    if (!config?.night?.enabled) return null;
+    return config.nightGroup ?? config.night.phaseGroup ?? config.id;
+  }
+
+  isInNightGroup(id: RoleId | null, group: string): boolean {
+    return this.getNightGroup(id) === group;
+  }
+
+  getVisibleRoleId(viewerRole: RoleId | null, targetRole: RoleId | null): RoleId | null {
+    if (!targetRole) return null;
+    if (viewerRole === targetRole) return targetRole;
+    const viewerGroup = this.getNightGroup(viewerRole);
+    const targetGroup = this.getNightGroup(targetRole);
+    if (!viewerGroup || viewerGroup !== targetGroup) return null;
+    return this.roles.get(targetRole)?.config.visibleAs ?? targetRole;
+  }
+
+  getCustomWinCandidates(
+    players: readonly { id: string; roleId: RoleId | null; isAlive: boolean }[],
+    checkpoint: RoleWinCheckpoint,
+    lovers: readonly [string, string] | null,
+  ): { winner: string; winnerLabel?: string; priority: number }[] {
+    const context: RoleWinContext = {
+      checkpoint,
+      players: players.map(p => ({ ...p, team: this.getTeam(p.roleId) })),
+      lovers,
+    };
+    const activeRoles = new Set(players.map(p => p.roleId).filter((id): id is string => !!id));
+    const candidates: { winner: string; winnerLabel?: string; priority: number }[] = [];
+    for (const roleId of activeRoles) {
+      const module = this.roles.get(roleId);
+      if (!module?.config.winCondition || !module.actions.checkWin) continue;
+      if (!module.actions.checkWin(context)) continue;
+      candidates.push({
+        winner: module.config.winCondition,
+        winnerLabel: module.config.winLabel ?? module.config.name,
+        priority: module.config.winPriority ?? 50,
+      });
+    }
+    return candidates;
   }
 
   getPublicCatalog(): PublicRoleInfo[] {
@@ -60,8 +117,15 @@ export class RoleManager {
     }));
   }
 
-  getNotebookEntries(assignedRoles: readonly (RoleId | null)[]): NotebookRoleInfo[] {
-    const ids = new Set(assignedRoles.map(id => id ?? "villager"));
+  getNotebookEntries(
+    assignedRoles: readonly (RoleId | null)[],
+    viewerRole: RoleId | null = null,
+    revealAll = false,
+  ): NotebookRoleInfo[] {
+    const ids = new Set(assignedRoles.map(id => {
+      if (!id) return "villager";
+      return revealAll || id === viewerRole ? id : (this.roles.get(id)?.config.visibleAs ?? id);
+    }));
     return [...ids].flatMap(id => {
       const config = id === "villager" ? villagerConfig : this.roles.get(id)?.config;
       if (!config) return [];
@@ -88,6 +152,11 @@ export class RoleManager {
     if (config.frameVisibility?.publicOnReveal && this.publicFrames.get(target.id) === target.gameRole) return config.frame;
     if (viewer?.userRole !== "player" || !viewer.gameRole) return null;
     if (viewer.gameRole === target.gameRole && config.frameVisibility?.sameRole) return config.frame;
+    const visibleId = this.getVisibleRoleId(viewer.gameRole, target.gameRole);
+    if (visibleId && visibleId !== target.gameRole) {
+      const disguise = this.roles.get(visibleId)?.config;
+      if (disguise?.frameVisibility?.sameRole) return disguise.frame;
+    }
     if (config.frameVisibility?.visibleToRoles?.includes(viewer.gameRole)) return config.frame;
     return null;
   }
@@ -109,7 +178,7 @@ export class RoleManager {
     if (this.confirmations.isConfirmed(actor.id)) {
       return { ok: false, reason: "Auswahl bereits bestätigt." };
     }
-    if (!canRoleTarget(role.config, actor, target)) {
+    if (!this.canTarget(role.config, actor, target)) {
       return { ok: false, reason: "Ziel nicht erlaubt." };
     }
     if (!role.actions.select) {
@@ -128,23 +197,26 @@ export class RoleManager {
     if (!role) {
       return {
         active: false, requiresConfirmation: false, confirmed: false,
-        selectionId: null as string | null, allowedTargetIds: [] as string[],
+        selectionId: null as string | null, selectionIds: [] as string[], allowedTargetIds: [] as string[],
         buttons: [] as RoleButtonState[], nightInfo: null as RoleNightInfo | null,
       };
     }
 
     const confirmed = this.confirmations.isConfirmed(actor.id);
     const selectionId = role.actions.getSelection?.(actor.id) ?? null;
+    const selectionIds = role.actions.getSelections?.(actor.id) ?? (selectionId ? [selectionId] : []);
     const buttons = (role.config.buttons?.[phase.period] ?? []).map(button =>
-      this.buttonState(role.config, button, actor, phase, confirmed, selectionId));
+      this.buttonState(role.config, button, actor, phase, confirmed,
+        selectionIds.length >= (role.config.selection?.targetCount ?? 1)));
 
     return {
       active: true,
       requiresConfirmation: role.config.selection?.requiresConfirmation === true,
       confirmed,
       selectionId,
+      selectionIds,
       allowedTargetIds: confirmed || !role.actions.select ? [] : targets
-        .filter(target => target.userRole === "player" && canRoleTarget(role.config, actor, target))
+        .filter(target => target.userRole === "player" && this.canTarget(role.config, actor, target))
         .map(target => target.id),
       buttons,
       nightInfo: phase.period === "night" ? this.nightInfoFor(role, nightState) ?? null : null,
@@ -162,8 +234,10 @@ export class RoleManager {
     const button = role.config.buttons?.[phase.period]?.find(b => b.id === buttonId);
     if (!button) return { ok: false, reason: "Aktion ist nicht verfügbar." };
     const selectionId = role.actions.getSelection?.(actor.id) ?? null;
+    const selections = role.actions.getSelections?.(actor.id) ?? (selectionId ? [selectionId] : []);
     const state = this.buttonState(role.config, button, actor, phase,
-      this.confirmations.isConfirmed(actor.id), selectionId);
+      this.confirmations.isConfirmed(actor.id),
+      selections.length >= (role.config.selection?.targetCount ?? 1));
     if (state.disabled) return { ok: false, reason: "Aktion derzeit nicht erlaubt." };
 
     if (button.kind === "confirm") return this.confirm(actor, phase);
@@ -188,8 +262,10 @@ export class RoleManager {
     if (this.confirmations.isConfirmed(actor.id)) {
       return { ok: false, reason: "Bereits bestätigt." };
     }
-    if (!role.actions.getSelection?.(actor.id)) {
-      return { ok: false, reason: "Noch kein Ziel ausgewählt." };
+    const selected = role.actions.getSelections?.(actor.id) ??
+      (role.actions.getSelection?.(actor.id) ? [role.actions.getSelection!(actor.id)!] : []);
+    if (selected.length !== (role.config.selection?.targetCount ?? 1)) {
+      return { ok: false, reason: "Bitte alle Ziele auswählen." };
     }
     this.confirmations.confirm(actor.id);
     return { ok: true };
@@ -233,10 +309,16 @@ export class RoleManager {
     for (const id of roleIds) {
       const role = this.roles.get(id);
       if (!role?.actions.onNightStepEnd) continue;
+      const group = this.getNightGroup(id);
+      const groupMembers = players.filter(p =>
+        p.userRole === "player" && p.isAlive && p.gameRole && this.getNightGroup(p.gameRole) === group);
+      const groupConfirmed = new Set(groupMembers.filter(p =>
+        this.completedConfirmations.get(p.gameRole!)?.has(p.id)).map(p => p.id));
       effects.push(...role.actions.onNightStepEnd({
         round: phase.round,
         players,
-        confirmedActorIds: this.completedConfirmations.get(id) ?? new Set<string>(),
+        confirmedActorIds: groupConfirmed,
+        groupActorIds: new Set(groupMembers.map(p => p.id)),
         night: this.nightInfoFor(role, nightState),
       }));
     }
@@ -284,6 +366,10 @@ export class RoleManager {
     }
   }
 
+  isConfirmed(actorId: string): boolean {
+    return this.confirmations.isConfirmed(actorId);
+  }
+
   resetConfirmations(): void {
     this.confirmations.reset();
   }
@@ -319,7 +405,7 @@ export class RoleManager {
     actor: RoleActionPlayer,
     phase: RoleActionPhase,
     confirmed: boolean,
-    selectionId: string | null,
+    selectionComplete: boolean,
   ): RoleButtonState {
     const used = (button.once || role[phase.period]?.frequency === "once") &&
       this.usedButtons.has(this.buttonKey(role.id, phase.period, button.id, actor.id));
@@ -329,8 +415,16 @@ export class RoleManager {
       id: button.id,
       label: isConfirmed ? (button.confirmedLabel ?? button.label) :
         used ? (button.usedLabel ?? button.label) : button.label,
-      disabled: Boolean(used || isConfirmed || (requiresSelection && !selectionId)),
+      disabled: Boolean(used || isConfirmed || (requiresSelection && !selectionComplete)),
     };
+  }
+
+  private canTarget(role: RoleDefinition, actor: RoleActionPlayer, target: RoleActionPlayer): boolean {
+    if (!canRoleTarget(role, actor, target)) return false;
+    if (role.targeting?.allowSameNightGroupTarget === false &&
+        this.getNightGroup(actor.gameRole) &&
+        this.getNightGroup(actor.gameRole) === this.getNightGroup(target.gameRole)) return false;
+    return true;
   }
 
   private getActiveRole(
@@ -346,7 +440,7 @@ export class RoleManager {
       return null;
     }
     if (timing.separatePhase) {
-      if ((timing.phaseGroup || role.config.id) !== phase.stepId) return null;
+      if ((phase.period === "night" ? this.getNightGroup(role.config.id) : timing.phaseGroup || role.config.id) !== phase.stepId) return null;
     } else if (phase.stepId !== null) {
       return null;
     }
@@ -367,7 +461,7 @@ export class RoleManager {
       const timing: RoleTiming | undefined = role[period];
       if (!timing?.enabled || !timing.separatePhase) continue;
       if (!this.frequencyAllows(timing.frequency, round, usedOnce, period, role.id)) continue;
-      const group = timing.phaseGroup || role.id;
+      const group = period === "night" ? this.getNightGroup(role.id)! : timing.phaseGroup || role.id;
       const entry = found.get(group);
       const order = timing.order ?? 100;
       if (entry) {

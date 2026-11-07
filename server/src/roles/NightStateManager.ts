@@ -25,7 +25,7 @@ export class NightStateManager {
     const attack = this.effects.find(
       (effect) => effect.type === "eliminate" && effect.reason === "werewolf",
     );
-    return attack?.targetId ?? null;
+    return attack?.type === "eliminate" ? attack.targetId : null;
   }
 
   getEffects(): readonly RoleEffect[] {

@@ -5,6 +5,7 @@ import { socket } from "../socket";
 import "./GameScene.css";
 import "./GameResult.css";
 import CameraLayer from "./CameraLayer";
+import AnimationLayer from "../animations/AnimationLayer";
 import RoleNotebook from "./RoleNotebook";
 import type { VoteStatus } from "./DayVotePanel";
 
@@ -14,6 +15,7 @@ type RoleActionState = {
   confirmed: boolean;
   hasSelection: boolean;
   selectedTargetId: string | null;
+  selectedTargetIds?: string[];
   targetIds: string[];
   buttons: { id: string; label: string; disabled: boolean }[];
 };
@@ -40,17 +42,21 @@ export default function GameScene({
 }: GameSceneProps) {
   const [vote, setVote] = useState<VoteStatus | null>(null);
   const [gameResult, setGameResult] = useState<{
-    winner: "werewolves" | "village";
+    winner: string;
+    winnerLabel?: string;
     checkpoint: "day-vote" | "night-end";
     autoRestartOnWin: boolean;
   } | null>(null);
-  const [elimination, setElimination] = useState<{playerId: string; sequence: number} | null>(null);
   const [maskNightCameras, setMaskNightCameras] = useState(false);
   const [visibleFrames, setVisibleFrames] = useState<Record<string, string>>({});
   const [focusedPlayerIds, setFocusedPlayerIds] = useState<string[]>([]);
   const [roleAction, setRoleAction] = useState<RoleActionState | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
   const [roleAnnouncement, setRoleAnnouncement] = useState<string | null>(null);
+  const [lovers, setLovers] = useState<{ markedPlayerIds: string[]; partnerName: string | null }>({
+    markedPlayerIds: [], partnerName: null,
+  });
+  const [werewolfVotes, setWerewolfVotes] = useState<{ targetId: string; confirmed: boolean }[]>([]);
 
   useEffect(() => {
     const onState = (value: RoleActionState) => {
@@ -104,19 +110,10 @@ export default function GameScene({
 
   useEffect(() => {
     const onStatus = (next: VoteStatus) => setVote(next);
-    const onEliminated = (event: { playerId?: string }) => {
-      if (typeof event?.playerId !== "string") return;
-      setElimination(previous => ({
-        playerId: event.playerId!,
-        sequence: (previous?.sequence ?? 0) + 1,
-      }));
-    };
     socket.on("day-vote:status", onStatus);
-    socket.on("day-vote:eliminated", onEliminated);
     socket.emit("day-vote:request");
     return () => {
       socket.off("day-vote:status", onStatus);
-      socket.off("day-vote:eliminated", onEliminated);
     };
   }, []);
 
@@ -155,9 +152,23 @@ export default function GameScene({
     };
   }, []);
 
+  useEffect(() => {
+    const onLovers = (data: { markedPlayerIds?: string[]; partnerName?: string | null }) =>
+      setLovers({ markedPlayerIds: data?.markedPlayerIds ?? [], partnerName: data?.partnerName ?? null });
+    const onVotes = (data: { entries?: { targetId: string; confirmed: boolean }[] }) =>
+      setWerewolfVotes(data?.entries ?? []);
+    socket.on("lovers:state", onLovers);
+    socket.on("werewolf-vote:status", onVotes);
+    return () => {
+      socket.off("lovers:state", onLovers);
+      socket.off("werewolf-vote:status", onVotes);
+    };
+  }, []);
+
   return (
     <section className="game-scene" data-phase={phase}>
       <header className="game-scene__header">
+        <h1>🐺 Werwolf Engine</h1>
         {userRole === "player" && roleAction?.active && roleAction.buttons?.length > 0 && (
           <div className="game-scene__role-buttons">
             {roleAction.buttons.map(button => (
@@ -172,11 +183,15 @@ export default function GameScene({
 
       {roleError && <p className="game-scene__role-message" role="alert">{roleError}</p>}
       {roleAnnouncement && <p className="game-scene__role-message" role="status">{roleAnnouncement}</p>}
+      {lovers.partnerName && <p className="game-scene__role-message">💞 Verliebt mit {lovers.partnerName}</p>}
       <div className="game-scene__content">
 
         {phase === "finished" && gameResult && (
           <div className="game-scene__game-result" role="status">
-            <strong>{gameResult.winner === "werewolves" ? "🐺 Die Werwölfe gewinnen!" : "🏡 Das Dorf gewinnt!"}</strong>
+            <strong>{gameResult.winner === "werewolves" ? "🐺 Die Werwölfe gewinnen!" :
+              gameResult.winner === "lovers" ? "💞 Die Verliebten gewinnen!" :
+              gameResult.winner === "village" ? "🏡 Das Dorf gewinnt!" :
+              `🏆 ${gameResult.winnerLabel ?? gameResult.winner} gewinnt!`}</strong>
             <small>{gameResult.autoRestartOnWin
               ? "Neue Runde startet gleich in der Lobby."
               : "Der Gamemaster kann die Runde in der Lobby zurücksetzen."}</small>
@@ -184,10 +199,13 @@ export default function GameScene({
         )}
         <CameraLayer players={players} viewerRole={userRole} phase={phase}
           visibleFrames={visibleFrames}
+          loverMarkedPlayerIds={lovers.markedPlayerIds}
+          werewolfVotes={werewolfVotes}
           focusedPlayerIds={focusedPlayerIds}
-          vote={vote} elimination={elimination}
+          vote={vote}
           roleAction={phase === "night" && userRole === "player" ? roleAction : null}
           maskNightCameras={maskNightCameras} />
+        <AnimationLayer />
       </div>
 
       <footer className="game-scene__footer">

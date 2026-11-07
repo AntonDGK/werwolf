@@ -30,3 +30,16 @@ Diese Rolle ist **nicht registriert** und verändert das Spiel nicht.
 - Alle Aktionen serverseitig prüfen; nur Teilnehmer der aktiven Rolle werden ausgeführt.
 
 **Kamerastreams:** Unverändert; nur Rahmenanzeige konfigurieren.
+
+
+## Erweiterte Rollen
+- `team`: Siegteam; Standard ist `village`
+- `nightGroup`: gemeinsame Nachtphase; Standard aus `night.phaseGroup`
+- `visibleAs`: öffentliche Rolle im Notizbuch und für Nachtgruppen-Mitglieder
+- `winCondition`: Kennung einer eigenen Siegbedingung
+- `winPriority`: 100 = Liebespaar, 0 = Standardsiege, eigene Regel = 50
+- `winLabel`: Name für die Siegesmeldung
+- `actions.checkWin(context)`: eigene Siegbedingung; nur bei aktiver Rundenrolle
+- `nightGroup` und `night.phaseGroup` sollten bei gemeinsamen Rollen übereinstimmen
+- `allowSameNightGroupTarget`: Gruppenmitglieder als Ziel ausschließen
+- Neue Sonderrolle: eigene Config und Actions registrieren; vorhandene Rollen bleiben unverändert

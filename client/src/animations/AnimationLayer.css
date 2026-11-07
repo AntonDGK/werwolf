@@ -1,0 +1,82 @@
+.animation-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.animation-layer__effect,
+.animation-layer__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Amor-Pfeile */
+.animation-layer__arrow {
+  fill: none;
+  stroke: #ff759e;
+  stroke-width: 5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 5px #ee3f7b);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: cupid-arrow-draw var(--animation-duration) ease-out forwards;
+}
+
+.animation-layer__heart {
+  position: absolute;
+  color: #ff719c;
+  font-size: 40px;
+  line-height: 1;
+  text-shadow: 0 0 9px #d2215c;
+  transform: translate(-50%, -50%) scale(.4);
+  opacity: 0;
+  animation: cupid-heart-pop var(--animation-duration) ease-out forwards;
+}
+
+@keyframes cupid-arrow-draw {
+  0% { stroke-dashoffset: 1; opacity: 0; }
+  12% { opacity: 1; }
+  75%, 100% { stroke-dashoffset: 0; opacity: .9; }
+}
+
+@keyframes cupid-heart-pop {
+  0%, 55% { opacity: 0; transform: translate(-50%, -50%) scale(.4); }
+  72% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
+  88% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); }
+}
+
+/* Todeseffekt */
+.animation-layer__death {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 3px solid #ff4040;
+  border-radius: 12px;
+  background: radial-gradient(circle, #f53c3c55, #42050544 70%, transparent);
+  box-shadow: 0 0 28px #de3737aa;
+  animation: player-death-glow var(--animation-duration) ease-in-out forwards;
+}
+
+.animation-layer__death span {
+  font-size: clamp(28px, 5vw, 64px);
+  color: #fff6f6;
+  text-shadow: 0 0 14px #c51717;
+}
+
+@keyframes player-death-glow {
+  0% { opacity: 0; }
+  24% { opacity: 1; }
+  65% { opacity: .95; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-layer__arrow,
+  .animation-layer__heart,
+  .animation-layer__death { animation-duration: .01ms; }
+}

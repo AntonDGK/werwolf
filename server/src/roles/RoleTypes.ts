@@ -1,6 +1,19 @@
 export type RoleId = string;
 export type AbilityFrequency = "every-night" | "every-day" | "first-night" | "once";
 export type RoleActionPeriod = "night" | "day";
+export type RoleTeam = "village" | "werewolves" | "neutral";
+export type RoleWinCheckpoint = "night-end" | "day-vote";
+
+export type RoleWinContext = {
+  checkpoint: RoleWinCheckpoint;
+  players: readonly {
+    id: string;
+    roleId: RoleId | null;
+    isAlive: boolean;
+    team: RoleTeam;
+  }[];
+  lovers: readonly [string, string] | null;
+};
 
 export type RoleTiming = {
   enabled: boolean;
@@ -14,6 +27,7 @@ export type RoleTiming = {
 export type RoleTargeting = {
   allowSelfTarget?: boolean;
   allowSameRoleTarget?: boolean;
+  allowSameNightGroupTarget?: boolean;
   onlyAliveTargets?: boolean;
 };
 
@@ -40,6 +54,7 @@ export type RoleCameraLayout = {
 
 export type RoleSelection = {
   requiresConfirmation?: boolean;
+  targetCount?: number;
 };
 
 export type RoleButton = {
@@ -71,6 +86,12 @@ export type RoleDefinition = {
   description: string;
   frame: string;
   frameVisibility?: RoleFrameVisibility;
+  team?: RoleTeam;
+  nightGroup?: string;
+  visibleAs?: RoleId;
+  winCondition?: string;
+  winLabel?: string;
+  winPriority?: number;
   night?: RoleTiming;
   day?: RoleTiming;
   buttons?: {
@@ -98,7 +119,8 @@ export type RoleActionPhase = {
 export type RoleEffect =
   | { type: "eliminate"; targetId: string; reason: string }
   | { type: "protect"; targetId: string }
-  | { type: "reveal"; targetId: string };
+  | { type: "reveal"; targetId: string }
+  | { type: "link-lovers"; targetIds: readonly [string, string] };
 
 export type RoleNightInfo = Readonly<{ werewolfTargetId: string | null }>;
 
@@ -120,6 +142,7 @@ export type RoleEventContext = {
   round: number;
   players: readonly RoleActionPlayer[];
   confirmedActorIds: ReadonlySet<string>;
+  groupActorIds?: ReadonlySet<string>;
   night?: RoleNightInfo;
 };
 
@@ -130,6 +153,7 @@ export type RoleActionResult =
 export type RoleActions = {
   select?: (context: RoleSelectContext) => RoleActionResult;
   getSelection?: (actorId: string) => string | null;
+  getSelections?: (actorId: string) => readonly string[];
   reset?: () => void;
   onNightStart?: (context: RoleEventContext) => readonly RoleEffect[];
   onNightAction?: (context: RoleActionContext) => RoleActionResult;
@@ -139,6 +163,7 @@ export type RoleActions = {
   onNightEnd?: (context: RoleEventContext) => readonly RoleEffect[];
   onDayStart?: (context: RoleEventContext) => readonly RoleEffect[];
   getDayVoteWeight?: (actorId: string) => number;
+  checkWin?: (context: RoleWinContext) => boolean;
   onGameReset?: () => void;
   onDeath?: (playerId: string) => void;
 };

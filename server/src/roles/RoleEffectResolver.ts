@@ -15,6 +15,7 @@ export function resolveRoleEffects(
   const revealed = new Set<string>();
 
   for (const effect of effects) {
+    if (effect.type === "link-lovers") continue;
     const target = valid.get(effect.targetId);
     if (!target) continue;
     if (effect.type === "eliminate" && target.isAlive && !protectedIds.has(effect.targetId)) {

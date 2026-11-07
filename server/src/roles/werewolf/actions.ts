@@ -61,6 +61,10 @@ export class WerewolfActions {
     return this.votes.get(voterId) ?? null;
   }
 
+  getEntries(): [string, string][] {
+    return [...this.votes.entries()];
+  }
+
   // Stimmen zählen
   getCounts(): Record<string, number> {
     const counts: Record<string, number> = {};
@@ -97,14 +101,15 @@ export const actions: RoleActions = {
     return werewolfVotes.getVote(actorId);
   },
 
-  onNightStepEnd: ({ players, confirmedActorIds }) => {
-    const eligible = players.filter(p => p.userRole === "player" && p.isAlive && p.gameRole === "werewolf");
+  onNightStepEnd: ({ players, confirmedActorIds, groupActorIds }) => {
+    const eligible = players.filter(p => p.userRole === "player" && p.isAlive &&
+      (groupActorIds?.has(p.id) ?? p.gameRole === "werewolf"));
     const votes = eligible.filter(p => confirmedActorIds.has(p.id))
       .map(p => werewolfVotes.getVote(p.id)).filter((id): id is string => id !== null);
     const result = evaluateWerewolfVotes(votes);
     if (result.type !== "winner") return [];
     const target = players.find(p => p.id === result.targetId && p.userRole === "player" &&
-      p.isAlive && p.gameRole !== "werewolf");
+      p.isAlive && !(groupActorIds?.has(p.id) ?? p.gameRole === "werewolf"));
     return target ? [{ type: "eliminate", targetId: target.id, reason: "werewolf" }] : [];
   },
 
