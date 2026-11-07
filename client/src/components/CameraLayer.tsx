@@ -50,6 +50,7 @@ type Props = {
   phase?: string;
   viewerRole?: "player" | "storyteller" | "gamemaster";
   maskNightCameras?: boolean;
+  nightVisiblePlayerIds?: string[];
 };
 
 function CameraTile({ player, own, stream, approved, frameName, frameOverlayName, selected, canVote, onVote, voteCount, wolfVotes, loverMarked, nightMasked, scaleClass }: {
@@ -115,7 +116,7 @@ function CameraTile({ player, own, stream, approved, frameName, frameOverlayName
 }
 
 export default function CameraLayer({ players, roleAction = null, visibleFrames = {}, focusedPlayerIds = [], loverMarkedPlayerIds = [], werewolfVotes = [], vote = null, phase, viewerRole,
-  maskNightCameras = false }: Props) {
+  maskNightCameras = false, nightVisiblePlayerIds = [] }: Props) {
   // Streams bleiben unverändert.
   const { localStream, remoteStreams, approvedIds } = useCamera();
   const selfId = socket.id;
@@ -130,11 +131,12 @@ export default function CameraLayer({ players, roleAction = null, visibleFrames 
     const own = player.id === selfId;
     const stream = own ? localStream : remoteStreams[player.id];
     const approved = approvedIds.includes(player.id);
-    const nightMasked = phase === "night" && maskNightCameras && !own;
+    const nightMasked = phase === "night" && maskNightCameras && !own &&
+      !nightVisiblePlayerIds.includes(player.id);
     let frameName = visibleFrames[player.id] ?? "frame-default.png";
     let frameOverlayName: string | undefined;
     if (player.userRole === "storyteller") frameName = "frame-storyteller.png";
-    else if (!player.isAlive) frameName = "frame-dead.png";
+    else if (!player.isAlive && phase !== "finished") frameName = "frame-dead.png";
     if (nightMasked || (!own && !approved)) frameOverlayName = "frame-blocked.png";
 
     const nightSelectable = Boolean(phase === "night" && viewerRole === "player" &&

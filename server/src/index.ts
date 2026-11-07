@@ -14,6 +14,7 @@ import { DayVoteManager } from "./game/DayVoteManager";
 import { decideWinCondition, type WinDecision, type WinCheckpoint } from "./game/WinConditionManager";
 import { RelationshipManager } from "./game/RelationshipManager";
 import { GameAnimationManager } from "./game/GameAnimationManager";
+import { GameSoundManager } from "./game/GameSoundManager";
 import { werewolfVotes } from "./roles/werewolf/actions";
 
 const app = express();
@@ -121,8 +122,15 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const roleManager = new RoleManager();
 const nightState = new NightStateManager();
+let pendingNightEffects: RoleEffect[] | null = null;
+let dayIntroPending = false;
+let dayDeathsRevealed = false;
+let nightCasualtyKeys: string[] = [];
+let heldDeathKeys: string[] = [];
+let nightCasualties: string[] = [];
 const relationships = new RelationshipManager();
 const gameAnimations = new GameAnimationManager((id, event) => io.to(id).emit("animation:play", event));
+const gameSounds = new GameSoundManager((id, event) => io.to(id).emit("sound:play", event));
 const phaseManager = new PhaseManager(roleManager);
 const dayVotes = new DayVoteManager();
 
@@ -259,14 +267,19 @@ function completeCurrentRoleStep(): void {
   }
 }
 
-function finishNight(): boolean {
+function finishNight(): void {
   const phase = currentRoleActionPhase();
-  if (!phase || phase.period !== "night") return false;
+  if (!phase || phase.period !== "night") return;
   completeCurrentRoleStep();
   nightState.record(roleManager.runEvent("onNightEnd", roundRolePlayers(), phase.round, nightState));
-  applyRoleEffects(nightState.getEffects());
+  pendingNightEffects = [...nightState.getEffects()];
+  const participants = roundRolePlayers();
+  const resolved = resolveRoleEffects(pendingNightEffects, participants);
+  nightCasualtyKeys = relationships.cascadeDeaths(resolved.eliminated, participants)
+    .filter(death => participants.some(p => p.id === death.targetId && p.isAlive))
+    .map(death => death.targetId);
+  nightCasualties = nightCasualtyKeys.map(key => playerAccounts.get(key)?.name ?? "Spieler");
   nightState.reset();
-  return finishIfWinner("night-end");
 }
 
 function currentRoleActionPhase(): RoleActionPhase | null {
@@ -297,7 +310,7 @@ function sendRoleState(receiver: Player): void {
     nightInfo: null as { werewolfTargetId: string | null } | null,
   };
   const phase = currentRoleActionPhase();
-  if (receiver.userRole !== "player" || !phase) {
+  if (receiver.userRole !== "player" || !phase || dayIntroPending) {
     io.to(receiver.id).emit("role:state", inactive);
     return;
   }
@@ -384,14 +397,29 @@ function distributeRolesForNewRound(): boolean {
   return true;
 }
 
+function sendDeathDisplayTo(receiver: Player): void {
+  const ids = heldDeathKeys.map(key => players.find(player =>
+    player.userRole === "player" && accountKey(player.name) === key)?.id,
+  ).filter((id): id is string => Boolean(id));
+  io.to(receiver.id).emit("day:death-display", { targetPlayerIds: ids });
+}
+
+function syncDeathDisplay(): void {
+  for (const receiver of players) sendDeathDisplayTo(receiver);
+}
+
 function controllerPhaseStatus() {
   return {
     ...phaseManager.getStatus(),
+    dayIntroPending,
+    dayDeathsRevealed,
+    nightCasualties: phaseManager.currentPhase === "day" ? nightCasualties : [],
     nightSteps: phaseManager.getNightTimeline(
       roundParticipantKeys.size ? roundRolePlayers() : players,
     ).map((entry) => ({
       id: entry.id,
-      label: entry.id === "werewolves" ? "Werwölfe" :
+      label: entry.id === "lovers-awake" ? "Verliebte erwachen" :
+        entry.id === "werewolves" ? "Werwölfe" :
         entry.roleIds.map((id) => roleManager.getRole(id)?.config.name ?? id).join(" / "),
     })),
   };
@@ -411,20 +439,12 @@ function broadcastControllerPhaseStatus(): void {
 const roundParticipantKeys = new Set<string>();
 let startedWithWerewolves = false;
 let gameResult: WinDecision | null = null;
-let restartTimeout: ReturnType<typeof setTimeout> | null = null;
-const AUTO_RESTART_DELAY_MS = 10_000;
 const gameEndSettings = { winDetectionEnabled: true };
-
-function cancelAutomaticRestart(): void {
-  if (restartTimeout !== null) clearTimeout(restartTimeout);
-  restartTimeout = null;
-}
 
 function sendGameResultTo(receiver: Player): void {
   io.to(receiver.id).emit("game:result", gameResult === null ? null : {
     ...gameResult,
-    autoRestartOnWin: true,
-    restartDelayMs: AUTO_RESTART_DELAY_MS,
+    autoRestartOnWin: false,
   });
   if (receiver.userRole === "gamemaster") {
     io.to(receiver.id).emit("game:admin-settings", { ...gameEndSettings });
@@ -433,17 +453,6 @@ function sendGameResultTo(receiver: Player): void {
 
 function broadcastGameResult(): void {
   for (const receiver of players) sendGameResultTo(receiver);
-}
-
-function scheduleAutomaticRestart(): void {
-  cancelAutomaticRestart();
-  if (!gameResult || phaseManager.currentPhase !== "finished") return;
-  restartTimeout = setTimeout(() => {
-    restartTimeout = null;
-    if (phaseManager.currentPhase === "finished" && gameResult) {
-      setGamePhase("lobby");
-    }
-  }, AUTO_RESTART_DELAY_MS);
 }
 
 /** Nur nach einer wirksamen Elimination am Tag oder nach Ende der Nacht. */
@@ -465,7 +474,6 @@ function finishIfWinner(checkpoint: WinCheckpoint): boolean {
   gameResult = decision;
   setGamePhase("finished");
   broadcastGameResult();
-  scheduleAutomaticRestart();
   return true;
 }
 
@@ -476,13 +484,20 @@ const sceneSettings = {
 
 function sendSceneSettingsTo(viewer: Player): void {
   const isNight = phaseManager.currentPhase === "night";
+  const loversAwake = isNight && phaseManager.getStatus().step === "lovers-awake";
+  const partnerKey = viewer.userRole === "player"
+    ? relationships.getPartner(accountKey(viewer.name)) : null;
+  const partner = partnerKey ? players.find(player =>
+    player.userRole === "player" && accountKey(player.name) === partnerKey) : null;
   const canSeeNightCameras = viewer.userRole !== "player" || (
     viewer.isAlive && viewer.gameRole !== null && phaseManager.getActiveRoleIds().includes(viewer.gameRole)
   );
   io.to(viewer.id).emit("scene:viewer-settings", {
     revealGamemasterRoles: isController(viewer) &&
       !(sceneSettings.hideControllerRoleFramesDuringDay && phaseManager.currentPhase === "day"),
-    maskNightCameras: isNight && sceneSettings.blockNightOutsideOwnPhase && !canSeeNightCameras,
+    maskNightCameras: loversAwake && viewer.userRole === "player"
+      ? true : isNight && sceneSettings.blockNightOutsideOwnPhase && !canSeeNightCameras,
+    nightVisiblePlayerIds: loversAwake && partner ? [partner.id] : [],
   });
   if (viewer.userRole === "gamemaster") {
     io.to(viewer.id).emit("scene:admin-settings", { ...sceneSettings });
@@ -491,6 +506,20 @@ function sendSceneSettingsTo(viewer: Player): void {
 
 function sendCameraLayoutTo(viewer: Player): void {
   const focusedPlayerIds: string[] = [];
+  if (phaseManager.currentPhase === "night" && phaseManager.getStatus().step === "lovers-awake") {
+    const pair = relationships.getLovers();
+    const visible = pair && (isController(viewer) ||
+      (viewer.userRole === "player" && pair.includes(accountKey(viewer.name))));
+    if (pair && visible) {
+      for (const target of players) {
+        if (target.userRole === "player" && pair.includes(accountKey(target.name))) {
+          focusedPlayerIds.push(target.id);
+        }
+      }
+    }
+    io.to(viewer.id).emit("scene:camera-layout", { focusedPlayerIds });
+    return;
+  }
   if (phaseManager.currentPhase === "night") {
     const activeRoles = phaseManager.getActiveRoleIds();
     const controller = viewer.userRole === "gamemaster" || viewer.userRole === "storyteller";
@@ -559,7 +588,8 @@ function broadcastAccountList(): void {
 
 function sendRoleNotebookTo(receiver: Player): void {
   const inRound = roundParticipantKeys.size > 0 &&
-    (phaseManager.currentPhase === "night" ||
+    (phaseManager.currentPhase === "role-intro" ||
+     phaseManager.currentPhase === "night" ||
      phaseManager.currentPhase === "day" ||
      phaseManager.currentPhase === "finished");
   const roles = inRound
@@ -576,8 +606,9 @@ function syncRoleNotebooks(): void {
 
 function sendVisibleRoleFramesTo(receiver: Player): void {
   const viewer = receiver.userRole === "player" ? roleActionPlayer(receiver) : null;
-  const controllerVisible = isController(receiver) &&
-    !(sceneSettings.hideControllerRoleFramesDuringDay && phaseManager.currentPhase === "day");
+  const controllerVisible = phaseManager.currentPhase === "finished" ||
+    (isController(receiver) &&
+      !(sceneSettings.hideControllerRoleFramesDuringDay && phaseManager.currentPhase === "day"));
   const visible: Record<string, string> = {};
   for (const target of players) {
     if (target.userRole !== "player") continue;
@@ -787,8 +818,51 @@ app.get("/", (_req, res) => {
 
 function setGamePhase(nextPhase: GamePhase): void {
   const previousPhase = phaseManager.currentPhase;
-  if (previousPhase === "night" && nextPhase === "day" && finishNight()) return;
-  if ((nextPhase === "night" || nextPhase === "day") &&
+  if (previousPhase === "finished" && nextPhase === "preparation") {
+    phaseManager.resetRound();
+    roleManager.resetGame();
+    nightState.reset();
+    dayVotes.reset();
+    relationships.reset();
+    gameRolesByAccount.clear();
+    aliveByAccount.clear();
+    roundParticipantKeys.clear();
+    startedWithWerewolves = false;
+    gameResult = null;
+    for (const player of players) {
+      if (player.userRole !== "player") continue;
+      player.gameRole = null;
+      player.isAlive = true;
+    }
+    broadcastPlayers();
+    syncGameRoles();
+    syncLoverStates();
+    syncWerewolfVotes();
+    broadcastGameResult();
+  }
+  if (previousPhase === "preparation" && nextPhase === "night") {
+    for (const controller of players.filter(isController)) {
+      io.to(controller.id).emit("phase:error", "Zuerst die Rollen kennenlernen.");
+    }
+    return;
+  }
+  if (previousPhase === "day" && dayIntroPending && nextPhase === "night") {
+    for (const controller of players.filter(isController)) {
+      io.to(controller.id).emit("phase:error", "Zuerst die Nacht-Todesfälle bekanntgeben.");
+    }
+    return;
+  }
+  if (previousPhase === "night" && nextPhase === "day") finishNight();
+  if (previousPhase !== "day" && nextPhase !== "day") {
+    pendingNightEffects = null;
+    dayIntroPending = false;
+    dayDeathsRevealed = false;
+    heldDeathKeys = [];
+    nightCasualtyKeys = [];
+    nightCasualties = [];
+    syncDeathDisplay();
+  }
+  if (nextPhase === "role-intro" &&
       (previousPhase === "preparation" || previousPhase === "lobby") &&
       phaseManager.getStatus().round === 0) {
     if (!distributeRolesForNewRound()) {
@@ -804,14 +878,13 @@ function setGamePhase(nextPhase: GamePhase): void {
   }
   if (nextPhase === "lobby") {
     nightState.reset();
-    cancelAutomaticRestart();
     gameResult = null;
     roundParticipantKeys.clear();
     relationships.reset();
     syncLoverStates();
     startedWithWerewolves = false;
   }
-  if ((nextPhase === "night" || nextPhase === "day") &&
+  if (nextPhase === "role-intro" &&
       (previousPhase === "lobby" || previousPhase === "preparation") &&
       phaseManager.getStatus().round === 0) {
     roundParticipantKeys.clear();
@@ -822,13 +895,18 @@ function setGamePhase(nextPhase: GamePhase): void {
       key => roleManager.getTeam(gameRolesByAccount.get(key) ?? null) === "werewolves",
     );
   }
-  if (nextPhase !== "finished" && nextPhase !== "lobby" && previousPhase === "finished") {
-    cancelAutomaticRestart();
-    gameResult = null;
-  }
   const status = phaseManager.setPhase(nextPhase,
     roundParticipantKeys.size ? roundRolePlayers() : players);
   if (previousPhase !== status.phase) {
+    dayIntroPending = status.phase === "day" && pendingNightEffects !== null;
+    dayDeathsRevealed = false;
+    if (status.phase !== "day") {
+      pendingNightEffects = null;
+      nightCasualtyKeys = [];
+      heldDeathKeys = [];
+      nightCasualties = [];
+      syncDeathDisplay();
+    }
     if (status.phase === "lobby") {
       roleManager.resetGame();
     } else if (status.phase === "night") {
@@ -837,12 +915,12 @@ function setGamePhase(nextPhase: GamePhase): void {
     } else {
       roleManager.resetConfirmations();
     }
-    if (status.phase === "finished" || status.phase === "preparation") nightState.reset();
+    if (status.phase === "finished" || status.phase === "preparation" || status.phase === "role-intro") nightState.reset();
     if (status.phase !== "finished") dayVotes.reset();
     if (status.phase === "night") {
       nightState.record(roleManager.runEvent("onNightStart", roundRolePlayers(), status.round, nightState));
     }
-    if (status.phase === "day") {
+    if (status.phase === "day" && !dayIntroPending) {
       applyRoleEffects(roleManager.runEvent("onDayStart", roundRolePlayers(), status.round));
       if (finishIfWinner("night-end")) return;
     }
@@ -860,6 +938,32 @@ function setGamePhase(nextPhase: GamePhase): void {
   broadcastControllerPhaseStatus();
   sendRoleProgress();
   syncRoleStates();
+}
+
+
+function revealNightCasualties(): void {
+  if (phaseManager.currentPhase !== "day" || !dayIntroPending || dayDeathsRevealed) return;
+  dayDeathsRevealed = true;
+  heldDeathKeys = [...nightCasualtyKeys];
+  syncDeathDisplay();
+  const effects = pendingNightEffects ?? [];
+  pendingNightEffects = null;
+  applyRoleEffects(effects);
+  broadcastControllerPhaseStatus();
+}
+
+function placeNightCasualties(): void {
+  if (phaseManager.currentPhase !== "day" || !dayIntroPending || !dayDeathsRevealed) return;
+  heldDeathKeys = [];
+  syncDeathDisplay();
+  dayIntroPending = false;
+  dayDeathsRevealed = false;
+  applyRoleEffects(roleManager.runEvent("onDayStart", roundRolePlayers(), phaseManager.getStatus().round));
+  phaseManager.syncDaySteps(roundRolePlayers());
+  if (finishIfWinner("night-end")) return;
+  broadcastControllerPhaseStatus();
+  syncRoleStates();
+  syncSceneSettings();
 }
 
 io.on("connection", (socket) => {
@@ -923,6 +1027,7 @@ io.on("connection", (socket) => {
     broadcastPlayers();
     broadcastCameras();
     sendGameResultTo(admin);
+    sendDeathDisplayTo(admin);
     console.log("Gamemaster erfolgreich angemeldet.");
   });
 
@@ -1133,6 +1238,7 @@ io.on("connection", (socket) => {
     broadcastCameras();
     notifyNewViewer(socket.id);
     sendGameResultTo(newPlayer);
+    sendDeathDisplayTo(newPlayer);
     console.log(`${account.name} hat sich angemeldet.`);
 
   });
@@ -1307,7 +1413,6 @@ io.on("connection", (socket) => {
     if (Object.keys(value).length !== 1 || typeof value.winDetectionEnabled !== "boolean") return;
     gameEndSettings.winDetectionEnabled = value.winDetectionEnabled;
     for (const receiver of players) sendGameResultTo(receiver);
-    scheduleAutomaticRestart();
   });
 
   socket.on("scene:settings:update", (input: unknown) => {
@@ -1330,12 +1435,22 @@ io.on("connection", (socket) => {
       socket.emit("phase:error", "Nur der Gamemaster darf die Phase direkt setzen.");
       return;
     }
-    const validPhases: GamePhase[] = ["lobby", "preparation", "night", "day", "finished"];
+    const validPhases: GamePhase[] = ["lobby", "preparation", "role-intro", "night", "day", "finished"];
     if (typeof nextPhase !== "string" || !validPhases.includes(nextPhase as GamePhase)) {
       socket.emit("phase:error", "Ungueltige Spielphase.");
       return;
     }
     setGamePhase(nextPhase as GamePhase);
+  });
+
+  socket.on("day:death-display:request", () => {
+    const receiver = participant(socket.id);
+    if (receiver) sendDeathDisplayTo(receiver);
+  });
+
+  socket.on("sound:test", () => {
+    if (!isAdmin(socket.id)) return;
+    gameSounds.play("test", players.map(player => player.id));
   });
 
   socket.on("phase:control:request", () => {
@@ -1350,12 +1465,22 @@ io.on("connection", (socket) => {
     if (controller?.userRole !== "gamemaster" && controller?.userRole !== "storyteller") return;
 
     const phase = phaseManager.currentPhase;
+    if (phase === "finished") return setGamePhase("preparation");
     if (phase === "lobby") return setGamePhase("preparation");
-    if (phase === "preparation") return setGamePhase("night");
+    if (phase === "preparation") return setGamePhase("role-intro");
+    if (phase === "role-intro") return setGamePhase("night");
     if (phase === "night") {
       completeCurrentRoleStep();
       const next = phaseManager.nextStep();
       roleManager.resetConfirmations();
+      if (next.step === "lovers-awake") {
+        const pair = relationships.getLovers();
+        if (pair) {
+          const recipients = players.filter(player => player.userRole === "player" &&
+            pair.includes(accountKey(player.name))).map(player => player.id);
+          gameSounds.play("love", recipients);
+        }
+      }
       if (next.step === null) {
         setGamePhase("day");
         return;
@@ -1367,6 +1492,7 @@ io.on("connection", (socket) => {
       return;
     }
     if (phase === "day") {
+      if (dayIntroPending) return dayDeathsRevealed ? placeNightCasualties() : revealNightCasualties();
       if (dayVotes.currentState === "idle") {
         dayVotes.start();
         syncDayVotes();
@@ -1381,6 +1507,7 @@ io.on("connection", (socket) => {
   socket.on("phase:step:next", () => {
     const controller = participant(socket.id);
     if (controller?.userRole !== "gamemaster" && controller?.userRole !== "storyteller") return;
+    if (dayIntroPending) return;
     completeCurrentRoleStep();
     phaseManager.nextStep();
     roleManager.resetConfirmations();
@@ -1413,7 +1540,7 @@ io.on("connection", (socket) => {
   socket.on("role:select", (targetId: unknown) => {
     const actor = participant(socket.id);
     const phase = currentRoleActionPhase();
-    if (!actor || !phase || typeof targetId !== "string" || targetId.length > 128) return;
+    if (!actor || !phase || dayIntroPending || typeof targetId !== "string" || targetId.length > 128) return;
     const target = participant(targetId);
     if (!target) return;
 
@@ -1452,7 +1579,7 @@ io.on("connection", (socket) => {
   socket.on("role:confirm", () => {
     const actor = participant(socket.id);
     const phase = currentRoleActionPhase();
-    if (!actor || !phase) return;
+    if (!actor || !phase || dayIntroPending) return;
 
     const result = roleManager.confirm(roleActionPlayer(actor), phase);
     if (!result.ok) {
@@ -1471,7 +1598,7 @@ io.on("connection", (socket) => {
   socket.on("role:action", (buttonId: unknown) => {
     const actor = participant(socket.id);
     const phase = currentRoleActionPhase();
-    if (!actor || !phase || typeof buttonId !== "string" || buttonId.length > 64) return;
+    if (!actor || !phase || dayIntroPending || typeof buttonId !== "string" || buttonId.length > 64) return;
     const result = roleManager.triggerButton(roleActionPlayer(actor), phase, buttonId, nightState);
     if (!result.ok) {
       socket.emit("role:error", result.reason);
@@ -1504,7 +1631,7 @@ io.on("connection", (socket) => {
       socket.emit("day-vote:error", "Eine Abstimmung ist nur am Tag moeglich.");
       return;
     }
-    if (dayVotes.currentState !== "idle") return;
+    if (dayIntroPending || dayVotes.currentState !== "idle") return;
     dayVotes.start();
     syncDayVotes();
   });

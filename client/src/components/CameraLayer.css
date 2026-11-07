@@ -157,15 +157,15 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 2px;
-  max-width: 95%;
+  gap: 0.6%;
+  width: 100%;
   pointer-events: none;
   white-space: nowrap;
 }
 .camera-layer__vote-icons img {
   display: block;
-  width: clamp(18px, 2vw, 28px);
-  height: clamp(18px, 2vw, 28px);
+  width: 8.5%;
+  height: auto;
   object-fit: contain;
   flex: 0 0 auto;
 }
@@ -181,14 +181,14 @@
   position: absolute;
   z-index: 6;
   top: 50%;
-  right: -12%;
-  width: clamp(20px, 3vw, 40px);
+  right: 0;
+  width: 11%;
   height: auto;
   transform: translateY(-50%);
   object-fit: contain;
   pointer-events: none;
   color: #ff6b9c;
-  font-size: clamp(20px, 3vw, 40px);
+  font-size: 2em;
   text-align: center;
   text-shadow: 0 1px 5px #000;
 }

@@ -4,7 +4,7 @@ export type UserRole = "gamemaster" | "storyteller" | "player";
 /** Role IDs are validated through RoleManager/RoleRegistry on the server. */
 export type GameRoleId = string;
 
-export type GamePhase = "lobby" | "preparation" | "night" | "day" | "finished";
+export type GamePhase = "lobby" | "preparation" | "role-intro" | "night" | "day" | "finished";
 export type DayStep = "announcement" | "discussion" | "voting" | "resolution";
 
 /** No role-specific step union: plugins choose their own phaseGroup. */

@@ -1,13 +1,41 @@
-.game-scene__game-result {
-  margin: 12px auto 18px;
-  max-width: 640px;
-  padding: 18px 20px;
-  border: 1px solid #947044;
-  border-radius: 12px;
-  background: rgba(38, 27, 20, .92);
+/* Ergebnis ohne Layoutverschiebung. */
+.game-scene__content { position: relative; }
+.game-scene__result-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
   display: grid;
-  gap: 7px;
+  place-items: center;
+  padding: 16px;
+  background: rgba(9, 14, 25, .55);
+}
+.game-scene__game-result {
+  position: relative;
+  box-sizing: border-box;
+  width: min(100%, 580px);
+  padding: 38px 34px 30px;
+  border: 1px solid #b99558;
+  border-radius: 14px;
+  background: rgba(38, 27, 20, .97);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .4);
+  display: grid;
+  gap: 12px;
   text-align: center;
 }
 .game-scene__game-result strong { font-size: clamp(1.2rem, 3vw, 2rem); }
 .game-scene__game-result small { opacity: .85; }
+.game-scene__result-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font-size: 28px;
+  line-height: 1;
+  padding: 4px 10px;
+}
+.game-scene__result-close:hover,
+.game-scene__result-close:focus-visible { background: rgba(255, 255, 255, .16); }

@@ -3,6 +3,7 @@ import type { ReactNode, TouchEvent, WheelEvent } from "react";
 import type { GamePhase } from "../types/Types";
 import { socket } from "../socket";
 import bookIcon from "../assets/icons/book-icon.png";
+import { getSoundVolume, setSoundVolume, onSoundVolumeChange } from "../sounds/gameSounds";
 import "./RoleNotebook.css";
 
 type NotebookRole = { id: string; name: string; description: string };
@@ -29,9 +30,13 @@ export default function RoleNotebook({ phase, ownRoleId, isPlayer }: RoleNoteboo
   const [open, setOpen] = useState(false);
   const [roles, setRoles] = useState<NotebookRole[]>([]);
   const [page, setPage] = useState(0);
+  const [soundOpen, setSoundOpen] = useState(false);
+  const [soundVolume, setLocalSoundVolume] = useState(getSoundVolume);
   const dialogRef = useRef<HTMLElement>(null);
   const lastScroll = useRef(0);
   const touchStartY = useRef<number | null>(null);
+
+  useEffect(() => onSoundVolumeChange(() => setLocalSoundVolume(getSoundVolume())), []);
 
   useEffect(() => {
     const receive = (data: unknown) => {
@@ -53,8 +58,9 @@ export default function RoleNotebook({ phase, ownRoleId, isPlayer }: RoleNoteboo
 
   useEffect(() => {
     setRoles([]);
+    if (phase === "role-intro" && isPlayer) setOpen(true);
     socket.emit("role:notebook:request");
-  }, [phase]);
+  }, [phase, isPlayer]);
 
   useEffect(() => {
     if (!open) return;
@@ -119,8 +125,24 @@ export default function RoleNotebook({ phase, ownRoleId, isPlayer }: RoleNoteboo
             onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
             <div className="role-notebook__header">
               <h2 id="role-notebook-title">📖 Rollen-Notizbuch</h2>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Notizbuch schließen">✕</button>
+              <div className="role-notebook__header-actions">
+                <button type="button" aria-label="Soundlautstärke einstellen" aria-expanded={soundOpen}
+                  onClick={() => setSoundOpen(open => !open)}>🔊</button>
+                <button type="button" onClick={() => setOpen(false)} aria-label="Notizbuch schließen">✕</button>
+              </div>
             </div>
+            {soundOpen && (
+              <div className="role-notebook__volume">
+                <label htmlFor="notebook-volume">Sounds: {Math.round(soundVolume * 100)} %</label>
+                <input id="notebook-volume" type="range" min="0" max="100" step="5"
+                  value={Math.round(soundVolume * 100)}
+                  onChange={event => {
+                    const next = Number(event.currentTarget.value) / 100;
+                    setSoundVolume(next);
+                    setLocalSoundVolume(next);
+                  }} />
+              </div>
+            )}
             {ownRole && (
               <p className="role-notebook__own-role">
                 Deine Rolle: <strong>{ownRole.name}</strong>
@@ -135,6 +157,7 @@ export default function RoleNotebook({ phase, ownRoleId, isPlayer }: RoleNoteboo
                   <span>{page + 1} / {roles.length}</span>
                   <button type="button" onClick={() => move(1)} disabled={roles.length < 2} aria-label="Nächste Rolle">❯</button>
                 </nav>
+                <p className="role-notebook__hint">Scrollen oder wischen für weitere Rollen</p>
               </>
             ) : (
               <p className="role-notebook__hint">In dieser Runde sind noch keine Rollen verfügbar.</p>

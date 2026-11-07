@@ -75,9 +75,7 @@
 
 .game-scene__footer {
   font-size: 14px;
-  position: relative;
-  z-index: 10;
-  opacity: 1;
+  opacity: 0.8;
 }
 
 @media (max-width: 600px) {
@@ -93,7 +91,7 @@
   margin-left: auto;
 }
 
-.game-scene__role-message {
-  margin: 0;
-  text-align: center;
+.game-scene__role-error {
+  color: #ffbcb3;
+  font-size: 0.85rem;
 }

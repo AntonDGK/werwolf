@@ -21,6 +21,13 @@ export class PhaseManager {
 
   get currentPhase(): GamePhase { return this.phase; }
 
+  resetRound(): void {
+    this.round = 0;
+    this.steps = [];
+    this.stepIndex = -1;
+    this.usedOnce.clear();
+  }
+
   // Nur serverintern: Welche Rollen sind gerade aktiv?
   // Der Rollenabschnitt selbst bleibt für Spieler geheim.
   getActiveRoleIds(): readonly string[] {
@@ -28,23 +35,16 @@ export class PhaseManager {
   }
 
   /** Nur fuer die Steuerungsansicht: Rollenabschnitte der laufenden/naechsten Nacht. */
-  getNightTimeline(
-    players: readonly Pick<Player, "userRole" | "gameRole" | "isAlive">[]
-  )
-  : ScheduledRoleStep[] {
+  getNightTimeline(players: readonly Pick<Player, "userRole" | "gameRole" | "isAlive">[]): ScheduledRoleStep[] {
     if (this.phase === "night") return this.steps;
-    return this.roleManager.createSteps("night", this.round + 1, players, this.usedOnce);
+    return this.createSteps("night", this.round + 1, players);
   }
 
   getStatus(): PhaseStatus {
     return { phase: this.phase, round: this.round, step: this.steps[this.stepIndex]?.id ?? null };
   }
 
-  setPhase(
-    next: GamePhase,
-    players: readonly Pick<Player, "userRole" | "gameRole" | "isAlive">[]
-  )
-  : PhaseStatus {
+  setPhase(next: GamePhase, players: readonly Pick<Player, "userRole" | "gameRole" | "isAlive">[]): PhaseStatus {
     if (next === this.phase) return this.getStatus();
     if (next === "lobby") {
       this.round = 0;
@@ -54,9 +54,30 @@ export class PhaseManager {
     this.phase = next;
     this.stepIndex = -1;
     this.steps = next === "night" || next === "day"
-      ? this.roleManager.createSteps(next, this.round, players, this.usedOnce)
+      ? this.createSteps(next, this.round, players)
       : [];
     return this.getStatus();
+  }
+
+  private createSteps(
+    period: "night" | "day",
+    round: number,
+    players: readonly Pick<Player, "userRole" | "gameRole" | "isAlive">[],
+  ): ScheduledRoleStep[] {
+    const steps = this.roleManager.createSteps(period, round, players, this.usedOnce);
+    if (period !== "night" || round !== 1) return steps;
+    const cupidIndex = steps.findIndex(step => step.roleIds.includes("cupid"));
+    if (cupidIndex < 0) return steps;
+    return [
+      ...steps.slice(0, cupidIndex + 1),
+      { id: "lovers-awake", order: steps[cupidIndex].order, roleIds: [] },
+      ...steps.slice(cupidIndex + 1),
+    ];
+  }
+
+  syncDaySteps(players: readonly Pick<Player, "userRole" | "gameRole" | "isAlive">[]): void {
+    if (this.phase !== "day" || this.stepIndex !== -1) return;
+    this.steps = this.roleManager.createSteps("day", this.round, players, this.usedOnce);
   }
 
   /** Next role step. A step ends only when a controller advances again. */

@@ -24,8 +24,8 @@ export default function GameEndSettings() {
       onChange={event => socket.emit("game:settings:update", { winDetectionEnabled: event.target.checked })} />
     <span><strong>Automatische Gewinnerkennung aktivieren</strong>
       <small style={{display:"block",marginTop:3,opacity:0.8}}>
-        Aktiv: Nach Ausscheiden oder Nachtende wird auf Sieg geprüft; nach einem Sieg
-        werden die Gewinner 10 Sekunden angezeigt und die Lobby startet neu.
+        Aktiv: Nach Ausscheiden oder Nachtende wird auf Sieg geprüft. Nach einem Sieg
+        bleibt die Ergebnisphase bestehen, bis die Spielleitung „Weiter“ drückt.
         Deaktiviert: Keine Siegprüfung und kein automatisches Spielende – ideal für Tests
         und Spezialrunden ohne Werwölfe.
       </small></span>

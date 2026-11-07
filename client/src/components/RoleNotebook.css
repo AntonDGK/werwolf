@@ -29,3 +29,7 @@
 .role-notebook__nav button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .role-notebook__nav span { font-variant-numeric: tabular-nums; }
 .role-notebook__hint { text-align: center; font-size: 13px; }
+
+.role-notebook__header-actions { display: flex; align-items: center; gap: 8px; }
+.role-notebook__volume { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; }
+.role-notebook__volume input { width: 130px; accent-color: #d9ae72; }

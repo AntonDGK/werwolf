@@ -15,8 +15,8 @@ export default function PhaseControls({ phase, userRole, vote }: {
     socket.on("phase:error", onError);
     return () => { socket.off("phase:error", onError); };
   }, []);
-  if ((userRole !== "storyteller" && userRole !== "gamemaster") || phase === "finished") return null;
-  const nextStepHint = phase === "day"
+  if (userRole !== "storyteller" && userRole !== "gamemaster") return null;
+  const nextStepHint = phase === "finished" ? "Neue Runde vorbereiten" : phase === "day"
     ? vote?.state === "idle" ? "Abstimmung starten"
       : vote?.state === "open" ? "Abstimmung schließen und Ergebnis zeigen"
       : "Nacht beginnen"

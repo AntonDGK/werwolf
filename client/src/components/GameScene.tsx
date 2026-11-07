@@ -1,6 +1,6 @@
 import type { GamePhase, UserRole } from "../types/Types";
 import type { PublicPlayer } from "../types/Player";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { socket } from "../socket";
 import "./GameScene.css";
 import "./GameResult.css";
@@ -41,6 +41,7 @@ export default function GameScene({
   onOpenPhaseRemote,
 }: GameSceneProps) {
   const [vote, setVote] = useState<VoteStatus | null>(null);
+  const [resultClosed, setResultClosed] = useState(false);
   const [gameResult, setGameResult] = useState<{
     winner: string;
     winnerLabel?: string;
@@ -48,15 +49,37 @@ export default function GameScene({
     autoRestartOnWin: boolean;
   } | null>(null);
   const [maskNightCameras, setMaskNightCameras] = useState(false);
+  const [nightVisiblePlayerIds, setNightVisiblePlayerIds] = useState<string[]>([]);
   const [visibleFrames, setVisibleFrames] = useState<Record<string, string>>({});
   const [focusedPlayerIds, setFocusedPlayerIds] = useState<string[]>([]);
   const [roleAction, setRoleAction] = useState<RoleActionState | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
-  const [roleAnnouncement, setRoleAnnouncement] = useState<string | null>(null);
   const [lovers, setLovers] = useState<{ markedPlayerIds: string[]; partnerName: string | null }>({
     markedPlayerIds: [], partnerName: null,
   });
   const [werewolfVotes, setWerewolfVotes] = useState<{ targetId: string; confirmed: boolean }[]>([]);
+  const [heldDeathPlayerIds, setHeldDeathPlayerIds] = useState<string[]>([]);
+  const displayedPlayers = useMemo(() => players.map(player =>
+    heldDeathPlayerIds.includes(player.id) ? { ...player, isAlive: true } : player,
+  ), [players, heldDeathPlayerIds]);
+
+  useEffect(() => {
+    const onDisplay = (value: unknown) => {
+      if (!value || typeof value !== "object") return;
+      const ids = (value as { targetPlayerIds?: unknown }).targetPlayerIds;
+      if (Array.isArray(ids) && ids.length <= 64 && ids.every(id => typeof id === "string")) {
+        setHeldDeathPlayerIds(ids);
+      }
+    };
+    const request = () => socket.emit("day:death-display:request");
+    socket.on("day:death-display", onDisplay);
+    socket.on("connect", request);
+    request();
+    return () => {
+      socket.off("day:death-display", onDisplay);
+      socket.off("connect", request);
+    };
+  }, []);
 
   useEffect(() => {
     const onState = (value: RoleActionState) => {
@@ -64,18 +87,14 @@ export default function GameScene({
       setRoleError(null);
     };
     const onError = (message: string) => setRoleError(message);
-    const onRoleEliminated = (event: { name: string }) =>
-      setRoleAnnouncement(`${event.name} wurde eliminiert.`);
     const request = () => socket.emit("role:state:request");
     socket.on("role:state", onState);
     socket.on("role:error", onError);
-    socket.on("role:eliminated", onRoleEliminated);
     socket.on("connect", request);
     request();
     return () => {
       socket.off("role:state", onState);
       socket.off("role:error", onError);
-      socket.off("role:eliminated", onRoleEliminated);
       socket.off("connect", request);
     };
   }, []);
@@ -87,9 +106,7 @@ export default function GameScene({
   }, [phase, userRole, privateRole?.roleId]);
 
   useEffect(() => {
-    if (phase === "night" || phase === "lobby" || phase === "preparation") {
-      setRoleAnnouncement(null);
-    }
+    if (phase !== "finished") setResultClosed(false);
   }, [phase]);
 
   useEffect(() => {
@@ -114,8 +131,10 @@ export default function GameScene({
   }, []);
 
   useEffect(() => {
-    const onViewSettings = (data: { maskNightCameras?: boolean }) => {
+    const onViewSettings = (data: { maskNightCameras?: boolean; nightVisiblePlayerIds?: string[] }) => {
       setMaskNightCameras(data?.maskNightCameras === true);
+      setNightVisiblePlayerIds(Array.isArray(data?.nightVisiblePlayerIds)
+        ? data.nightVisiblePlayerIds.filter(id => typeof id === "string") : []);
     };
     const onFrames = (data: unknown) => {
       if (!data || typeof data !== "object" || Array.isArray(data)) return;
@@ -171,7 +190,6 @@ export default function GameScene({
   return (
     <section className="game-scene" data-phase={phase}>
       <header className="game-scene__header">
-        <h1>🐺 Werwolf Engine</h1>
         {userRole === "player" && roleAction?.active && roleAction.buttons?.length > 0 && (
           <div className="game-scene__role-buttons">
             {roleAction.buttons.map(button => (
@@ -184,34 +202,35 @@ export default function GameScene({
         )}
       </header>
 
-      {roleError && <p className="game-scene__role-message" role="alert">{roleError}</p>}
-      {roleAnnouncement && <p className="game-scene__role-message" role="status">{roleAnnouncement}</p>}
-      {lovers.partnerName && <p className="game-scene__role-message">💞 Verliebt mit {lovers.partnerName}</p>}
       <div className="game-scene__content">
 
-        {phase === "finished" && gameResult && (
-          <div className="game-scene__game-result" role="status">
-            <strong>{gameResult.winner === "werewolves" ? "🐺 Die Werwölfe gewinnen!" :
-              gameResult.winner === "lovers" ? "💞 Die Verliebten gewinnen!" :
-              gameResult.winner === "village" ? "🏡 Das Dorf gewinnt!" :
-              `🏆 ${gameResult.winnerLabel ?? gameResult.winner} gewinnt!`}</strong>
-            <small>{gameResult.autoRestartOnWin
-              ? "Neue Runde startet gleich in der Lobby."
-              : "Der Gamemaster kann die Runde in der Lobby zurücksetzen."}</small>
+        {phase === "finished" && gameResult && !resultClosed && (
+          <div className="game-scene__result-overlay">
+            <div className="game-scene__game-result" role="dialog" aria-modal="true" aria-labelledby="game-scene__winner-title">
+              <button type="button" className="game-scene__result-close"
+                aria-label="Ergebnis schließen und Rollen ansehen" onClick={() => setResultClosed(true)}>×</button>
+              <strong id="game-scene__winner-title">{gameResult.winner === "werewolves" ? "🐺 Die Werwölfe gewinnen!" :
+                gameResult.winner === "lovers" ? "💞 Die Verliebten gewinnen!" :
+                gameResult.winner === "village" ? "🏡 Das Dorf gewinnt!" :
+                `🏆 ${gameResult.winnerLabel ?? gameResult.winner} gewinnt!`}</strong>
+              <small>Mit × schließen und alle Rollen ansehen.</small>
+              <small>Die nächste Runde beginnt erst, wenn der Erzähler „Weiter“ drückt.</small>
+            </div>
           </div>
         )}
-        <CameraLayer players={players} viewerRole={userRole} phase={phase}
+        <CameraLayer players={displayedPlayers} viewerRole={userRole} phase={phase}
           visibleFrames={visibleFrames}
           loverMarkedPlayerIds={lovers.markedPlayerIds}
           werewolfVotes={werewolfVotes}
           focusedPlayerIds={focusedPlayerIds}
           vote={vote}
           roleAction={phase === "night" && userRole === "player" ? roleAction : null}
-          maskNightCameras={maskNightCameras} />
+          maskNightCameras={maskNightCameras} nightVisiblePlayerIds={nightVisiblePlayerIds} />
         <AnimationLayer />
       </div>
 
       <footer className="game-scene__footer">
+        {roleError && <span className="game-scene__role-error" role="alert">{roleError}</span>}
         {userRole !== "gamemaster" && onOpenCamera && (
           <button type="button" onClick={onOpenCamera} aria-label="Kameraeinstellungen öffnen">
             ⚙️ Kamera

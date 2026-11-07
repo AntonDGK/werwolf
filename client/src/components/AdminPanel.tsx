@@ -45,6 +45,9 @@ export default function AdminPanel({ players, phaseControl, onPhaseAdvance, onVo
         <CameraAdminPanel />
         <AccountManager />
         <StorytellerManager players={players} />
+        <div className="admin-panel__sound-test">
+          <button type="button" onClick={() => socket.emit("sound:test")}>🔊 Testsound an alle senden</button>
+        </div>
       </div>
     </section>
   );

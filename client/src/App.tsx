@@ -11,6 +11,7 @@ import AdminPanel from "./components/AdminPanel";
 import { usePhaseRemoteHost } from "./hooks/usePhaseRemoteHost";
 import { socket } from "./socket";
 import { preloadRoleFrames } from "./components/preloadRoleFrames";
+import { registerGameSoundPlayer } from "./sounds/gameSounds";
 import type { UserRole, GamePhase } from "./types/Types";
 import type { PublicPlayer } from "./types/Player";
 
@@ -22,6 +23,7 @@ function isGamePhase(value: unknown): value is GamePhase {
   return (
     value === "lobby" ||
     value === "preparation" ||
+    value === "role-intro" ||
     value === "night" ||
     value === "day" ||
     value === "finished"
@@ -34,6 +36,7 @@ function isUserRole(value: unknown): value is UserRole {
 
 function AppContent() {
   useEffect(() => { preloadRoleFrames(); }, []);
+  useEffect(() => registerGameSoundPlayer(), []);
 
   const { stopCamera } = useCamera();
   const [screen, setScreen] = useState<Screen>("start");

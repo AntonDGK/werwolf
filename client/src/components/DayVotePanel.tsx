@@ -20,7 +20,7 @@ export default function DayVotePanel({ status, userRole, error }: {
   if (userRole !== "player") return null;
   return <div className="day-vote" aria-live="polite">
     {status?.state === "closed" && <span>
-      {status.winner ? `🗳️ ${status.winner} scheidet aus` : "🗳️ Kein eindeutiges Ergebnis"}
+      🗳️ Abstimmung beendet
     </span>}
     {error && <span role="alert" className="day-vote__error">{error}</span>}
   </div>;
