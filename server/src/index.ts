@@ -508,7 +508,8 @@ function sendCameraLayoutTo(viewer: Player): void {
   const focusedPlayerIds: string[] = [];
   if (phaseManager.currentPhase === "night" && phaseManager.getStatus().step === "lovers-awake") {
     const pair = relationships.getLovers();
-    const visible = pair && (isController(viewer) ||
+    const visible = pair && (
+      viewer.userRole === "gamemaster" || viewer.userRole === "storyteller" ||
       (viewer.userRole === "player" && pair.includes(accountKey(viewer.name))));
     if (pair && visible) {
       for (const target of players) {
