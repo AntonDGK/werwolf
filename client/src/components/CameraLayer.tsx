@@ -85,7 +85,8 @@ function CameraTile({ player, own, stream, approved, frameName, frameOverlayName
         <div className="camera-layer__vote-icons camera-layer__vote-icons--werewolf" aria-label="Werwolf-Stimmen">
           {wolfVotes.slice(0, 6).map((entry, index) => (
             <img key={index} src={werewolfVoteIcon} alt={entry.confirmed ? "Bestätigte Stimme" : "Vorläufige Stimme"}
-              className={entry.confirmed ? undefined : "camera-layer__vote--pending"} draggable={false} />
+              className={entry.confirmed ? "camera-layer__vote--confirmed" : "camera-layer__vote--pending"}
+              draggable={false} />
           ))}
           {wolfVotes.length > 6 && <span className="camera-layer__vote-more">+{wolfVotes.length - 6}</span>}
         </div>
@@ -130,17 +131,11 @@ export default function CameraLayer({ players, roleAction = null, visibleFrames 
     const stream = own ? localStream : remoteStreams[player.id];
     const approved = approvedIds.includes(player.id);
     const nightMasked = phase === "night" && maskNightCameras && !own;
-    const blocked = nightMasked || (!own && !approved);
-
     let frameName = visibleFrames[player.id] ?? "frame-default.png";
-
-    if (player.userRole === "storyteller") {
-      frameName = "frame-storyteller.png";
-    } else if (!blocked && !player.isAlive) {
-      frameName = "frame-dead.png";
-    }
-
-    const frameOverlayName = blocked ? "frame-blocked.png" : undefined;
+    let frameOverlayName: string | undefined;
+    if (player.userRole === "storyteller") frameName = "frame-storyteller.png";
+    else if (!player.isAlive) frameName = "frame-dead.png";
+    if (nightMasked || (!own && !approved)) frameOverlayName = "frame-blocked.png";
 
     const nightSelectable = Boolean(phase === "night" && viewerRole === "player" &&
       roleAction?.active && !roleAction.confirmed && roleAction.targetIds.includes(player.id));

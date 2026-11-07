@@ -229,10 +229,12 @@ function applyRoleEffects(effects: readonly RoleEffect[]): void {
   for (const targetId of resolved.revealed) {
     const roleId = gameRolesByAccount.get(targetId) ?? null;
     roleManager.publishFrameOnReveal(targetId, roleId);
+    const targetSocketId = players.find(p => p.userRole === "player" && accountKey(p.name) === targetId)?.id;
+    // Später: gameAnimations.play("captain-reveal", targetSocketId ? [targetSocketId] : [], players.map(p => p.id));
     const roleName = roleId ? roleManager.getRole(roleId)?.config.name ?? roleId : "Dorfbewohner";
     for (const receiver of players) {
       io.to(receiver.id).emit("role:revealed", {
-        playerId: players.find(p => p.userRole === "player" && accountKey(p.name) === targetId)?.id ?? null,
+        playerId: targetSocketId ?? null,
         name: playerAccounts.get(targetId)?.name ?? "Spieler",
         roleId,
         roleName,
@@ -468,7 +470,7 @@ function finishIfWinner(checkpoint: WinCheckpoint): boolean {
 }
 
 const sceneSettings = {
-  gmRoleFramesPermanent: false, // GM sieht wahre Rollen nachts immer; tagsüber optional
+  hideControllerRoleFramesDuringDay: false,
   blockNightOutsideOwnPhase: false,
 };
 
@@ -478,8 +480,8 @@ function sendSceneSettingsTo(viewer: Player): void {
     viewer.isAlive && viewer.gameRole !== null && phaseManager.getActiveRoleIds().includes(viewer.gameRole)
   );
   io.to(viewer.id).emit("scene:viewer-settings", {
-    revealGamemasterRoles: viewer.userRole === "gamemaster" &&
-      (sceneSettings.gmRoleFramesPermanent || isNight),
+    revealGamemasterRoles: isController(viewer) &&
+      !(sceneSettings.hideControllerRoleFramesDuringDay && phaseManager.currentPhase === "day"),
     maskNightCameras: isNight && sceneSettings.blockNightOutsideOwnPhase && !canSeeNightCameras,
   });
   if (viewer.userRole === "gamemaster") {
@@ -574,11 +576,12 @@ function syncRoleNotebooks(): void {
 
 function sendVisibleRoleFramesTo(receiver: Player): void {
   const viewer = receiver.userRole === "player" ? roleActionPlayer(receiver) : null;
-  const gmVisible = sceneSettings.gmRoleFramesPermanent || phaseManager.currentPhase === "night";
+  const controllerVisible = isController(receiver) &&
+    !(sceneSettings.hideControllerRoleFramesDuringDay && phaseManager.currentPhase === "day");
   const visible: Record<string, string> = {};
   for (const target of players) {
     if (target.userRole !== "player") continue;
-    const frame = receiver.userRole === "gamemaster" && gmVisible
+    const frame = controllerVisible
       ? roleManager.getFrameFilename(target.gameRole)
       : roleManager.getVisibleFrame(viewer, roleActionPlayer(target));
     if (frame) visible[target.id] = frame;
@@ -591,9 +594,10 @@ function syncVisibleRoleFrames(): void {
 }
 
 function sendLoverStateTo(receiver: Player): void {
-  const keys = receiver.userRole === "player" && relationships.getPartner(accountKey(receiver.name))
-    ? relationships.getLovers() ?? []
-    : receiver.userRole !== "player" ? relationships.getLovers() ?? [] : [];
+  const canSee = receiver.userRole !== "player" ||
+    (roundParticipantKeys.has(accountKey(receiver.name)) &&
+      (receiver.gameRole === "cupid" || relationships.getPartner(accountKey(receiver.name)) !== null));
+  const keys = canSee ? relationships.getLovers() ?? [] : [];
   const markedPlayerIds = keys.map(key =>
     players.find(p => p.userRole === "player" && accountKey(p.name) === key)?.id,
   ).filter((id): id is string => Boolean(id));
@@ -1312,9 +1316,9 @@ io.on("connection", (socket) => {
     const data = input as Record<string, unknown>;
     const keys = Object.keys(data);
     if (keys.length !== 1 ||
-        !["gmRoleFramesPermanent", "blockNightOutsideOwnPhase"].includes(keys[0]) ||
+        !["hideControllerRoleFramesDuringDay", "blockNightOutsideOwnPhase"].includes(keys[0]) ||
         typeof data[keys[0]] !== "boolean") return;
-    if (keys[0] === "gmRoleFramesPermanent") sceneSettings.gmRoleFramesPermanent = data[keys[0]] as boolean;
+    if (keys[0] === "hideControllerRoleFramesDuringDay") sceneSettings.hideControllerRoleFramesDuringDay = data[keys[0]] as boolean;
     else sceneSettings.blockNightOutsideOwnPhase = data[keys[0]] as boolean;
     syncSceneSettings();
   });
@@ -1386,10 +1390,23 @@ io.on("connection", (socket) => {
     syncRoleStates();
   });
 
+  socket.on("lovers:state:request", () => {
+    const receiver = participant(socket.id);
+    if (receiver) sendLoverStateTo(receiver);
+  });
+
+  socket.on("werewolf-vote:request", () => {
+    const receiver = participant(socket.id);
+    if (receiver) sendWerewolfVotesTo(receiver);
+  });
+
   // Eigene Rollenaktion abrufen.
   socket.on("role:state:request", () => {
     const actor = participant(socket.id);
     if (actor) sendRoleState(actor);
+  });
+  socket.on("role:progress:request", () => {
+    if (isController(participant(socket.id))) sendRoleProgress();
   });
 
   // Einheitliche Auswahl für alle Rollen.
@@ -1421,6 +1438,16 @@ io.on("connection", (socket) => {
     syncWerewolfVotes();
   });
 
+  // Bestätigte Effekte verarbeiten
+  function handleConfirmationEffects(effects: readonly RoleEffect[], phase: RoleActionPhase): void {
+    if (phase.period === "night") {
+      applyRelationshipLinks(effects);
+      nightState.record(effects.filter(effect => effect.type !== "link-lovers"));
+    } else {
+      applyRoleEffects(effects);
+    }
+  }
+
   // Auswahl sperren und Fortschritt nur an Spielleitung senden.
   socket.on("role:confirm", () => {
     const actor = participant(socket.id);
@@ -1433,6 +1460,7 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (result.effects?.length) handleConfirmationEffects(result.effects, phase);
     socket.emit("role:confirmed");
     sendRoleState(actor);
     sendRoleProgress();
@@ -1450,13 +1478,17 @@ io.on("connection", (socket) => {
       return;
     }
     if (result.effects?.length) {
-      if (phase.period === "night") nightState.record(result.effects);
+      if (phase.period === "night" && roleManager.getRole(actor.gameRole ?? "")?.config.buttons?.night
+        ?.some(button => button.id === buttonId && button.kind === "confirm")) {
+        handleConfirmationEffects(result.effects, phase);
+      } else if (phase.period === "night") nightState.record(result.effects);
       else applyRoleEffects(result.effects);
     }
     if (phase.period === "day") syncDayVotes();
     socket.emit("role:action:success", { buttonId });
     sendRoleState(actor);
     sendRoleProgress();
+    syncWerewolfVotes();
   });
 
   // Dorfabstimmung

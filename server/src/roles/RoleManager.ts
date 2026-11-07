@@ -267,8 +267,12 @@ export class RoleManager {
     if (selected.length !== (role.config.selection?.targetCount ?? 1)) {
       return { ok: false, reason: "Bitte alle Ziele auswählen." };
     }
+    const confirmed = role.actions.onConfirm?.({
+      actorId: actor.id, targetIds: selected, round: phase.round,
+    });
+    if (confirmed && !confirmed.ok) return confirmed;
     this.confirmations.confirm(actor.id);
-    return { ok: true };
+    return confirmed ?? { ok: true };
   }
 
   getConfirmationProgress(

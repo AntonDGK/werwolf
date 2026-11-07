@@ -3,11 +3,11 @@ import { socket } from "../socket";
 import "./AdminFrameSettings.css";
 
 type Settings = {
-  gmRoleFramesPermanent: boolean;
+  hideControllerRoleFramesDuringDay: boolean;
   blockNightOutsideOwnPhase: boolean;
 };
 const initial: Settings = {
-  gmRoleFramesPermanent: false,
+  hideControllerRoleFramesDuringDay: false,
   blockNightOutsideOwnPhase: false,
 };
 
@@ -15,7 +15,7 @@ export default function AdminFrameSettings() {
   const [settings, setSettings] = useState(initial);
   useEffect(() => {
     const onSettings = (payload: Settings) => {
-      if (typeof payload?.gmRoleFramesPermanent !== "boolean" ||
+      if (typeof payload?.hideControllerRoleFramesDuringDay !== "boolean" ||
           typeof payload?.blockNightOutsideOwnPhase !== "boolean") return;
       setSettings(payload);
     };
@@ -34,10 +34,10 @@ export default function AdminFrameSettings() {
   return <section className="admin-frame-settings">
     <h2>🖼️ Kamerarahmen</h2>
     <label className="admin-frame-settings__option">
-      <input type="checkbox" checked={settings.gmRoleFramesPermanent}
-        onChange={e => toggle("gmRoleFramesPermanent", e.target.checked)} />
-      <span><strong>Echte Rollenrahmen beim Gamemaster dauerhaft anzeigen</strong>
-        <small>Nachts sieht der Gamemaster die echten Rollen immer – auch wenn dieser Schalter aus ist.</small></span>
+      <input type="checkbox" checked={settings.hideControllerRoleFramesDuringDay}
+        onChange={e => toggle("hideControllerRoleFramesDuringDay", e.target.checked)} />
+      <span><strong>Rollenrahmen tagsüber bei Spielleitung ausblenden</strong>
+        <small>Erzähler und Gamemaster sehen Rollenrahmen standardmäßig immer. Mit Haken tagsüber nur öffentlich sichtbare Rahmen.</small></span>
     </label>
     <label className="admin-frame-settings__option">
       <input type="checkbox" checked={settings.blockNightOutsideOwnPhase}

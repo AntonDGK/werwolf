@@ -14,6 +14,7 @@ export type PhaseControlVote = {
 };
 export type PhaseControlView = {
   status: PhaseControlStatus | null;
+  roleProgress: { confirmed: number; total: number } | null;
   vote: PhaseControlVote | null;
   connected: boolean;
   error: string;
@@ -81,6 +82,12 @@ export default function PhaseRemotePanel({ view, onAdvance, onRepeat }: {
           ))}
         </ol>
       )}
+      {phase === "night" && view.roleProgress && view.roleProgress.total > 0 &&
+        <p className="phase-remote__notice" role="status">
+          {view.roleProgress.confirmed >= view.roleProgress.total
+            ? "Alle Rollenaktionen bestätigt – Weiter möglich"
+            : `Rollenaktionen bestätigt: ${view.roleProgress.confirmed}/${view.roleProgress.total}`}
+        </p>}
       {!view.connected && <p className="phase-remote__notice" role="status">Hauptfenster nicht verbunden.</p>}
       {view.error && <p className="phase-remote__error" role="alert">{view.error}</p>}
       <div className="phase-remote__actions">

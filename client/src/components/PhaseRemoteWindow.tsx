@@ -4,7 +4,7 @@ import RoleDistributionSettings, { type DistributionStatus, type DistributionUpd
 import "./PhaseRemoteWindow.css";
 
 const CHANNEL = "werwolf-phase-remote-v1";
-const empty: PhaseControlView = { status: null, vote: null, connected: false, error: "" };
+const empty: PhaseControlView = { status: null, vote: null, roleProgress: null, connected: false, error: "" };
 
 type HostMessage = { channel: typeof CHANNEL; type: "state"; view: PhaseControlView; distribution?: DistributionStatus | null };
 

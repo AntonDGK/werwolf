@@ -138,6 +138,12 @@ export type RoleSelectContext = {
   round: number;
 };
 
+export type RoleConfirmContext = {
+  actorId: string;
+  targetIds: readonly string[];
+  round: number;
+};
+
 export type RoleEventContext = {
   round: number;
   players: readonly RoleActionPlayer[];
@@ -154,6 +160,7 @@ export type RoleActions = {
   select?: (context: RoleSelectContext) => RoleActionResult;
   getSelection?: (actorId: string) => string | null;
   getSelections?: (actorId: string) => readonly string[];
+  onConfirm?: (context: RoleConfirmContext) => RoleActionResult;
   reset?: () => void;
   onNightStart?: (context: RoleEventContext) => readonly RoleEffect[];
   onNightAction?: (context: RoleActionContext) => RoleActionResult;

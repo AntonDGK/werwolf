@@ -187,8 +187,13 @@
   transform: translateY(-50%);
   object-fit: contain;
   pointer-events: none;
+  color: #ff6b9c;
+  font-size: clamp(20px, 3vw, 40px);
+  text-align: center;
+  text-shadow: 0 1px 5px #000;
 }
 
 /* Werwolf-Stimmen */
-.camera-layer__vote-icons--werewolf { bottom: 6%; }
+.camera-layer__vote-icons--werewolf { bottom: 0; }
 .camera-layer__vote--pending { opacity: .45; }
+.camera-layer__vote--confirmed { opacity: 1; }

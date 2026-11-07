@@ -19,6 +19,7 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
   const [status, setStatus] = useState<PhaseControlStatus | null>(null);
   const [distribution, setDistribution] = useState<DistributionStatus | null>(null);
   const [vote, setVote] = useState<PhaseControlVote | null>(null);
+  const [roleProgress, setRoleProgress] = useState<{ confirmed: number; total: number } | null>(null);
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(socket.connected);
 
@@ -26,6 +27,7 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
     if (!enabled) {
       setStatus(null);
       setVote(null);
+      setRoleProgress(null);
       setDistribution(null);
       setError("");
       return;
@@ -35,6 +37,9 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
     };
     const onVote = (value: PhaseControlVote) => {
       if (value && (value.state === "idle" || value.state === "open" || value.state === "closed")) setVote(value);
+    };
+    const onRoleProgress = (value: { confirmed: number; total: number }) => {
+      if (Number.isInteger(value?.confirmed) && Number.isInteger(value?.total)) setRoleProgress(value);
     };
     const onDistribution = (value: DistributionStatus) => {
       if (value && typeof value.enabled === "boolean" &&
@@ -50,11 +55,13 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
         socket.emit("phase:control:request");
         socket.emit("day-vote:request");
         socket.emit("role-distribution:request");
+        socket.emit("role:progress:request");
       }
     };
     const onDisconnect = () => setConnected(false);
     socket.on("phase:step:changed", onStatus);
     socket.on("day-vote:status", onVote);
+    socket.on("role:progress", onRoleProgress);
     socket.on("role-distribution:status", onDistribution);
     socket.on("role-distribution:error", onError);
     socket.on("phase:error", onError);
@@ -65,6 +72,7 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
     return () => {
       socket.off("phase:step:changed", onStatus);
       socket.off("day-vote:status", onVote);
+      socket.off("role:progress", onRoleProgress);
       socket.off("role-distribution:status", onDistribution);
       socket.off("role-distribution:error", onError);
       socket.off("phase:error", onError);
@@ -74,7 +82,7 @@ export function usePhaseRemoteHost(userRole: UserRole, isLoggedIn: boolean) {
     };
   }, [enabled]);
 
-  const view: PhaseControlView = useMemo(() => ({ status, vote, connected: enabled && connected, error }), [status, vote, connected, enabled, error]);
+  const view: PhaseControlView = useMemo(() => ({ status, vote, roleProgress, connected: enabled && connected, error }), [status, vote, roleProgress, connected, enabled, error]);
   const updateDistribution = useCallback((update: DistributionUpdate) => {
     if (!enabled || !socket.connected) return;
     socket.emit("role-distribution:update", update);
