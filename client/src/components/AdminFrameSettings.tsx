@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { socket } from "../socket";
 import "./AdminFrameSettings.css";
+import { useCameraSizeNotice } from "../layout/cameraSizeNotice";
 
 type Settings = {
   hideControllerRoleFramesDuringDay: boolean;
@@ -13,6 +14,7 @@ const initial: Settings = {
 
 export default function AdminFrameSettings() {
   const [settings, setSettings] = useState(initial);
+  const cameraSizeNotice = useCameraSizeNotice();
   useEffect(() => {
     const onSettings = (payload: Settings) => {
       if (typeof payload?.hideControllerRoleFramesDuringDay !== "boolean" ||
@@ -33,6 +35,7 @@ export default function AdminFrameSettings() {
 
   return <section className="admin-frame-settings">
     <h2>🖼️ Kamerarahmen</h2>
+    {cameraSizeNotice && <p role="status">Cam-Größe set to {cameraSizeNotice.percent.toFixed(1)} %</p>}
     <label className="admin-frame-settings__option">
       <input type="checkbox" checked={settings.hideControllerRoleFramesDuringDay}
         onChange={e => toggle("hideControllerRoleFramesDuringDay", e.target.checked)} />

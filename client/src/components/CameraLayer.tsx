@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { PublicPlayer } from "../types/Player";
 import { useCamera } from "../camera/useCamera";
 import { socket } from "../socket";
 import CameraFrame from "./CameraFrame";
-import { calculateCameraLayout } from "./CameraLayoutManager";
-import type { CameraGroupKind } from "./CameraLayoutManager";
+import { calculateCameraEllipse, calculateFocusTargets, CAMERA_ELLIPSE } from "../layout/CameraEllipseLayout";
+import CameraMotionSlot from "../layout/CameraMotionSlot";
+import { reportCameraSize } from "../layout/cameraSizeNotice";
 import villageVoteIcon from "../assets/icons/vote-villager.png";
 import werewolfVoteIcon from "../assets/icons/vote-werewolf.png";
 
@@ -53,7 +54,7 @@ type Props = {
   nightVisiblePlayerIds?: string[];
 };
 
-function CameraTile({ player, own, stream, approved, frameName, frameOverlayName, selected, canVote, onVote, voteCount, wolfVotes, loverMarked, nightMasked, scaleClass }: {
+function CameraTile({ player, own, stream, approved, frameName, frameOverlayName, selected, canVote, onVote, voteCount, wolfVotes, loverMarked, nightMasked }: {
   player: PublicPlayer;
   own: boolean;
   stream: MediaStream | undefined | null;
@@ -67,7 +68,6 @@ function CameraTile({ player, own, stream, approved, frameName, frameOverlayName
   wolfVotes: { confirmed: boolean }[];
   loverMarked: boolean;
   nightMasked: boolean;
-  scaleClass: "camera_scale" | "camera_scale_small";
 }) {
   const contents: ReactNode = <>
     <div className="camera-layer__picture">
@@ -106,7 +106,7 @@ function CameraTile({ player, own, stream, approved, frameName, frameOverlayName
 
   return <button type="button"
     data-animation-player-id={player.id}
-    className={`camera-layer__frame ${scaleClass}${canVote ? " camera-layer__frame--votable" : ""}`}
+    className={`camera-layer__frame${canVote ? " camera-layer__frame--votable" : ""}`}
     onClick={onVote} disabled={!canVote}
     aria-pressed={canVote ? selected : undefined}
     aria-label={canVote ? `Für ${player.name} stimmen` : `Kamera von ${player.name}`}>
@@ -120,10 +120,51 @@ export default function CameraLayer({ players, roleAction = null, visibleFrames 
   // Streams bleiben unverändert.
   const { localStream, remoteStreams, approvedIds } = useCamera();
   const selfId = socket.id;
-  const layout = useMemo(
-    () => calculateCameraLayout(players, phase === "night" ? focusedPlayerIds : []),
-    [players, focusedPlayerIds, phase],
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [area, setArea] = useState({ width: 0, height: 0 });
+  const playerOrder = useRef<string[]>([]);
+  const playerIds = players.filter(player => player.userRole === "player").map(player => player.id);
+  const idSet = new Set(playerIds);
+  if (playerOrder.current.length !== playerIds.length ||
+      playerOrder.current.some(id => !idSet.has(id))) {
+    const retained = playerOrder.current.filter(id => idSet.has(id));
+    playerOrder.current = [...retained, ...playerIds.filter(id => !retained.includes(id))];
+  }
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(entries => {
+      const rect = entries[0]?.contentRect;
+      if (!rect) return;
+      setArea(prev => prev.width === rect.width && prev.height === rect.height
+        ? prev : { width: rect.width, height: rect.height });
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const ellipse = useMemo(
+    () => calculateCameraEllipse(playerOrder.current, area.width, area.height),
+    [playerIds.join("|"), area.width, area.height],
   );
+  const focused = phase === "night" ? playerOrder.current.filter(id => focusedPlayerIds.includes(id)) : [];
+  const staticObstacles = players.filter(player => player.userRole === "player" &&
+    !focused.includes(player.id) && ellipse.positions[player.id]).map(player => ({
+      ...ellipse.positions[player.id],
+      width: ellipse.cameraWidth * (!player.isAlive && phase !== "finished" ? CAMERA_ELLIPSE.deadScale : 1),
+    }));
+  staticObstacles.push({ ...ellipse.narratorPosition, width: ellipse.narratorWidth });
+  const focusTargets = calculateFocusTargets(
+    focused, area.width, area.height, ellipse.cameraWidth, staticObstacles,
+  );
+
+
+  useEffect(() => {
+    if (!area.width || !area.height) return;
+    reportCameraSize(ellipse.isLimited ? ellipse.cameraPercent : null);
+    return () => reportCameraSize(null);
+  }, [area.width, area.height, ellipse.isLimited, ellipse.cameraPercent]);
   const canVote = viewerRole === "player" && phase === "day" &&
     players.some(p => p.id === selfId && p.userRole === "player" && p.isAlive) && vote?.state === "open";
 
@@ -162,29 +203,26 @@ export default function CameraLayer({ players, roleAction = null, visibleFrames 
     }] as const;
   }));
 
-  function sizeFor(kind: CameraGroupKind): "camera_scale" | "camera_scale_small" {
-    return layout.hasHighlight && kind === "nothighlight" ? "camera_scale_small" : "camera_scale";
-  }
-
   return (
-    <div className="camera-layer" data-highlight={layout.hasHighlight}
-      style={{ "--camera-rows": Math.max(1, layout.rows.length) } as CSSProperties}>
-      {layout.rows.map(row => {
-        const renderGroups = (groups: typeof row.groups) => groups.map((group, index) => (
-          <div key={`${group.kind}-${index}`}
-            className={`camera-layer__group camera-layer__group--${group.kind}`}>
-            {group.players.map(player => {
-              const tile = tiles.get(player.id);
-              return tile && <CameraTile key={player.id} {...tile} scaleClass={sizeFor(group.kind)} />;
-            })}
-          </div>
-        ));
-        return (
-          <div key={row.id} className={`camera-layer__row camera-layer__row--${row.kind}`}
-            style={{ "--camera-tiles": row.fitCount } as CSSProperties}>
-            {renderGroups(row.groups)}
-          </div>
-        );
+    <div ref={containerRef} className="camera-layer camera-layer--ellipse">
+      {area.width > 0 && area.height > 0 && players.filter(player => player.userRole !== "gamemaster").map(player => {
+        const tile = tiles.get(player.id);
+        if (!tile) return null;
+        const narrator = player.userRole === "storyteller";
+        const point = narrator ? ellipse.narratorPosition : ellipse.positions[player.id];
+        if (!point) return null;
+        const target = !narrator ? focusTargets[player.id] : undefined;
+        const isDead = !player.isAlive && phase !== "finished";
+        const position = target
+          ? { ...target, focused: true }
+          : { ...point, scale: narrator ? 1 : isDead ? CAMERA_ELLIPSE.deadScale : 1, focused: false };
+        return <CameraMotionSlot key={player.id} position={position}
+          width={narrator ? ellipse.narratorWidth : ellipse.cameraWidth}
+          obstacles={staticObstacles.filter(other => Math.hypot(other.x - point.x, other.y - point.y) > 1)}
+          flightIndex={target ? focused.indexOf(player.id) : playerOrder.current.indexOf(player.id) % 3}
+          narrator={narrator}>
+          <CameraTile {...tile} />
+        </CameraMotionSlot>;
       })}
     </div>
   );
